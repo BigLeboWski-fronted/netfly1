@@ -860,18 +860,12 @@ details[open] .itemBody{
 }
 
 /* убираем дефолтный вид ссылки */
-.iconBtn.kinoBtn a{
-  color: inherit;
+.iconBtn.kinoBtn{
+  color: var(--text);
   text-decoration: none;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
 }
-
-/* на всякий случай: если браузер применяет visited */
-.iconBtn.kinoBtn a:visited{
-  color: inherit;
+.iconBtn.kinoBtn:visited{
+  color: var(--text);
 }
 
 .iconBtn:hover{ background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.14); transform: translateY(-1px); }
