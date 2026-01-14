@@ -4409,6 +4409,12 @@ document.addEventListener("click", (e) => {
       resetSliders();
       renderEverything();
 
+      if(status === "wish"){
+        const k = getWishKindForMovie(movie);
+        wishKindActive = (k === "series") ? "series" : "movie";
+        syncWishToggleButtons();
+      }
+
       goTo(status === "wish" ? "wish" : "rated", { openId: movie.id });
     }
 
