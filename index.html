@@ -2584,6 +2584,9 @@ body::before{
     // Basic utility helpers
     function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
     function normalize(s){ return String(s ?? "").trim().toLowerCase(); }
+ 
+
+
     function pluralRu(n, one, few, many){
       const mod10 = n % 10;
       const mod100 = n % 100;
@@ -2594,6 +2597,11 @@ body::before{
     function formatSeriesCount(n){ return `${n} ${pluralRu(n, "серия", "серии", "серий")}`; }
     function formatHoursCount(n){ return `${n} ${pluralRu(n, "час", "часа", "часов")}`; }
     function formatWeeksCount(n){ return `${n} ${pluralRu(n, "неделя", "недели", "недель")}`; }
+
+
+
+
+
     // Builds link to Kino.pub with best-known title and content type.
     function kinoPubSearchUrl(movie, kind){
       const typeRaw = getTypeOfMovie(movie);
@@ -3036,8 +3044,11 @@ function loadProfile(){
       }else if(Array.isArray(nowState.watchLog) && nowState.watchLog.length){
         const times = nowState.watchLog.map(it => Number(it.ts || 0)).filter(Boolean).sort((a,b)=>a-b);
         startTs = times[0] || null;
+
       }else if(Number.isFinite(Number(nowState.startedAt))){
         startTs = Number(nowState.startedAt);
+
+
       }
       if(!startTs) return null;
       const days = Math.max(1, Math.floor((Date.now() - startTs) / 86400000) + 1);
