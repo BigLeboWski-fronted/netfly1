@@ -857,6 +857,8 @@ details[open] .itemBody{
 .iconBtn.kinoBtn{
   position: relative;
   overflow: hidden;
+  color: var(--text);
+  text-decoration: none;
 }
 
 /* убираем дефолтный вид ссылки */
@@ -872,6 +874,10 @@ details[open] .itemBody{
 /* на всякий случай: если браузер применяет visited */
 .iconBtn.kinoBtn a:visited{
   color: inherit;
+}
+
+.iconBtn.kinoBtn:visited{
+  color: var(--text);
 }
 
 .iconBtn:hover{ background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.14); transform: translateY(-1px); }
