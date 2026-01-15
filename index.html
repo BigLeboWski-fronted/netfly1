@@ -858,6 +858,8 @@ details[open] .itemBody{
   position: relative;
   overflow: hidden;
   color: var(--text);
+
+
   text-decoration: none;
 }
 
@@ -874,6 +876,7 @@ details[open] .itemBody{
 /* на всякий случай: если браузер применяет visited */
 .iconBtn.kinoBtn a:visited{
   color: inherit;
+
 }
 
 .iconBtn.kinoBtn:visited{
@@ -2560,20 +2563,21 @@ function saveCinemaNight(on){
 
     function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
     function normalize(s){ return String(s ?? "").trim().toLowerCase(); }
-    function kinoPubSearchUrl(movie){
-  const typeRaw = String(movie?.omdb?.type || "").toLowerCase();
-  const type = (typeRaw === "series") ? "serial" : "movie";
+    function kinoPubSearchUrl(movie, kind){
+  const typeRaw = getTypeOfMovie(movie);
+  const kindType = kind === "series" ? "series" : "movie";
+  const type = (typeRaw === "series" || kindType === "series") ? "serial" : "movie";
 
   // берем “оригинальное” название из OMDb, если есть
   const title =
     (movie?.omdb?.title && String(movie.omdb.title).trim()) ||
+    (movie?.title && String(movie.title).trim()) ||
     (movie?.name && String(movie.name).trim()) ||
     "";
 
-  // kino.pub чувствителен к query — лучше без капса
-  const query = title.toLowerCase();
+  if(!title) return "";
 
-  return `https://kino.pub/item/search?type=${encodeURIComponent(type)}&mode=&query=${encodeURIComponent(query)}`;
+  return `https://kino.pub/item/search?type=${encodeURIComponent(type)}&mode=&query=${encodeURIComponent(title)}`;
 }
 
 
@@ -5400,21 +5404,18 @@ text.appendChild(meta);
         actions.appendChild(toRatedBtn);
 
         // kino.pub search button (opens in new tab)
-        const kinoRawTitle =
-          (movie && movie.omdb && movie.omdb.title) ? movie.omdb.title :
-          (movie && movie.title) ? movie.title :
-          (movie && movie.name) ? movie.name : "";
-        const kinoQuery = normalize(kinoRawTitle);
-        if(kinoQuery){
-          const kinoType = (k === "series") ? "serial" : "movie";
-          const kinoBtn = document.createElement("a");
+        const kinoUrl = kinoPubSearchUrl(movie, k);
+        if(kinoUrl){
+          const kinoBtn = document.createElement("button");
+          kinoBtn.type = "button";
           kinoBtn.className = "iconBtn kinoBtn";
-          kinoBtn.href = `https://kino.pub/item/search?type=${kinoType}&mode=&query=${encodeURIComponent(kinoQuery)}`;
-          kinoBtn.target = "_blank";
-          kinoBtn.rel = "noopener noreferrer";
           kinoBtn.textContent = "KP";
           kinoBtn.title = "Искать на kino.pub";
-          kinoBtn.addEventListener("click", (e) => { e.stopPropagation(); });
+          kinoBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.open(kinoUrl, "_blank", "noopener,noreferrer");
+          });
           actions.appendChild(kinoBtn);
         }
 
