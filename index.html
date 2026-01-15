@@ -2392,6 +2392,7 @@ body::before{
 
   <script>
     // ========= Config =========
+    // External endpoints + local storage keys live here so they are easy to update.
     const OMDB_KEY = "dacfce21";
     const OMDB_BASE = "https://www.omdbapi.com/";
 
@@ -2400,6 +2401,7 @@ body::before{
     const NOW_KEY_V1 = "netfly_now_v1";
     const OMDB_EP_CACHE_V1 = "netfly_omdb_eps_v1";
 
+    // Navigation tabs (id must match view section ids).
     const VIEWS = [
       { id:"home",     label:"Главная" },
       { id:"evaluate", label:"Оценить" },
@@ -2408,6 +2410,7 @@ body::before{
       { id:"now",     label:"Смотрю сейчас" },
     ];
 
+    // Human-readable labels for status badges.
     const STATUS_LABEL = {
       watched: "Оценено",
       wish: "Буду смотреть",
@@ -2415,7 +2418,7 @@ body::before{
       dropped: "Бросил",
     };
 
-    // 3 sliders (0..10)
+    // 3 sliders (0..10) used for overall score.
     const CRITERIA = [
       { key: "overall",  label: "Общее впечатление" },
       { key: "engage",   label: "Вовлечённость" },
@@ -2423,6 +2426,7 @@ body::before{
     ];
 
     // ========= Elements =========
+    // Cache all DOM references in one place to avoid repeated queries.
     const els = {
       nav: document.getElementById("nav"),
 
@@ -2519,6 +2523,7 @@ body::before{
     };
 
     // ========= State =========
+    // App-level state lives here and is updated via render helpers.
     let currentView = "home";
     let wishKindActive = "movie"; // "movie" | "series"
 
@@ -2527,10 +2532,10 @@ body::before{
     let nowState = loadNowState();
     let omdbEpCache = loadEpCache();
 
-    // pulse helper for ⭐ toggle
+    // pulse helper for ⭐ toggle (prevents multiple pulses at once)
     let lastFavPulseId = null;
 
-    // current slider state
+    // current slider state keyed by CRITERIA entries
     const current = {};
     CRITERIA.forEach(c => current[c.key] = 0);
 
@@ -2547,59 +2552,65 @@ body::before{
     let dragLastPlaceholderBeforeId = null;
 
     // ========= Helpers =========
+    // Pure helpers: formatting, storage, utility conversions.
     const CINEMA_KEY = "netfly_cinema_night";
 
-function applyCinemaNight(on){
-  document.body.classList.toggle("cinemaNight", !!on);
-}
+    // Cinema Night theme helpers (adds a class to body + persists state)
+    function applyCinemaNight(on){
+      document.body.classList.toggle("cinemaNight", !!on);
+    }
 
-function loadCinemaNight(){
-  return localStorage.getItem(CINEMA_KEY) === "1";
-}
+    function loadCinemaNight(){
+      return localStorage.getItem(CINEMA_KEY) === "1";
+    }
 
-function saveCinemaNight(on){
-  localStorage.setItem(CINEMA_KEY, on ? "1" : "0");
-}
+    function saveCinemaNight(on){
+      localStorage.setItem(CINEMA_KEY, on ? "1" : "0");
+    }
 
+    // Basic utility helpers
     function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
     function normalize(s){ return String(s ?? "").trim().toLowerCase(); }
+    // Builds link to Kino.pub with best-known title and content type.
     function kinoPubSearchUrl(movie, kind){
-  const typeRaw = getTypeOfMovie(movie);
-  const kindType = kind === "series" ? "series" : "movie";
-  const type = (typeRaw === "series" || kindType === "series") ? "serial" : "movie";
+      const typeRaw = getTypeOfMovie(movie);
+      const kindType = kind === "series" ? "series" : "movie";
+      const type = (typeRaw === "series" || kindType === "series") ? "serial" : "movie";
 
-  // берем “оригинальное” название из OMDb, если есть
-  const title =
-    (movie?.omdb?.title && String(movie.omdb.title).trim()) ||
-    (movie?.title && String(movie.title).trim()) ||
-    (movie?.name && String(movie.name).trim()) ||
-    "";
+      // берем “оригинальное” название из OMDb, если есть
+      const title =
+        (movie?.omdb?.title && String(movie.omdb.title).trim()) ||
+        (movie?.title && String(movie.title).trim()) ||
+        (movie?.name && String(movie.name).trim()) ||
+        "";
 
-  if(!title) return "";
+      if(!title) return "";
 
-  return `https://kino.pub/item/search?type=${encodeURIComponent(type)}&mode=&query=${encodeURIComponent(title)}`;
-}
+      return `https://kino.pub/item/search?type=${encodeURIComponent(type)}&mode=&query=${encodeURIComponent(title)}`;
+    }
 
 
-function formatQueueAge(createdAt){
-  const ts = Number(createdAt || Date.now());
-  const days = Math.max(0, Math.floor((Date.now() - ts) / 86400000));
-  if(days <= 0) return "В очереди: сегодня";
-  if(days === 1) return "В очереди: 1 день";
-  if(days < 30) return `В очереди: ${days} дн.`;
-  const months = Math.floor(days / 30);
-  if(months === 1) return "В очереди: 1 месяц";
-  if(months < 12) return `В очереди: ${months} мес.`;
-  const years = Math.floor(months / 12);
-  if(years === 1) return "В очереди: 1 год";
-  return `В очереди: ${years} лет`;
-}
+    // Format how long an item has stayed in the queue for UI chips.
+    function formatQueueAge(createdAt){
+      const ts = Number(createdAt || Date.now());
+      const days = Math.max(0, Math.floor((Date.now() - ts) / 86400000));
+      if(days <= 0) return "В очереди: сегодня";
+      if(days === 1) return "В очереди: 1 день";
+      if(days < 30) return `В очереди: ${days} дн.`;
+      const months = Math.floor(days / 30);
+      if(months === 1) return "В очереди: 1 месяц";
+      if(months < 12) return `В очереди: ${months} мес.`;
+      const years = Math.floor(months / 12);
+      if(years === 1) return "В очереди: 1 год";
+      return `В очереди: ${years} лет`;
+    }
 
-function isQueueStale(createdAt){
-  const ts = Number(createdAt || Date.now());
-  const days = Math.max(0, Math.floor((Date.now() - ts) / 86400000));
-  return days >= 90;
-}
+    // Mark queue items that are "stale" based on added date.
+    function isQueueStale(createdAt){
+      const ts = Number(createdAt || Date.now());
+      const days = Math.max(0, Math.floor((Date.now() - ts) / 86400000));
+      return days >= 90;
+    }
 
     function escapeHtml(s){
       return String(s ?? "")
