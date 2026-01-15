@@ -2383,8 +2383,7 @@ body::before{
 
   <script>
     // ========= Config =========
-    const OMDB_KEY = "dacfce21";
-    const OMDB_BASE = "https://www.omdbapi.com/";
+    const OMDB_BASE = "/.netlify/functions/omdb";
 
     const STORAGE_KEY_V6 = "netfly_movies_v6";
     const PROFILE_KEY_V2 = "netfly_profile_v2";
@@ -4092,8 +4091,7 @@ row.appendChild(range);
     }
 
     async function omdbFetch(params){
-      const url = new URL(OMDB_BASE);
-      params.apikey = OMDB_KEY;
+      const url = new URL(OMDB_BASE, window.location.origin);
       Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, String(v)));
       const res = await fetch(url.toString());
       if(!res.ok) throw new Error(`HTTP ${res.status}`);
