@@ -857,21 +857,7 @@ details[open] .itemBody{
 .iconBtn.kinoBtn{
   position: relative;
   overflow: hidden;
-}
-
-/* убираем дефолтный вид ссылки */
-.iconBtn.kinoBtn a{
-  color: inherit;
-  text-decoration: none;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-}
-
-/* на всякий случай: если браузер применяет visited */
-.iconBtn.kinoBtn a:visited{
-  color: inherit;
+  color: var(--text);
 }
 
 .iconBtn:hover{ background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.14); transform: translateY(-1px); }
@@ -5398,17 +5384,20 @@ text.appendChild(meta);
           (movie && movie.omdb && movie.omdb.title) ? movie.omdb.title :
           (movie && movie.title) ? movie.title :
           (movie && movie.name) ? movie.name : "";
-        const kinoQuery = normalize(kinoRawTitle);
+        const kinoQuery = kinoRawTitle.trim();
         if(kinoQuery){
           const kinoType = (k === "series") ? "serial" : "movie";
-          const kinoBtn = document.createElement("a");
+          const kinoBtn = document.createElement("button");
+          kinoBtn.type = "button";
           kinoBtn.className = "iconBtn kinoBtn";
-          kinoBtn.href = `https://kino.pub/item/search?type=${kinoType}&mode=&query=${encodeURIComponent(kinoQuery)}`;
-          kinoBtn.target = "_blank";
-          kinoBtn.rel = "noopener noreferrer";
           kinoBtn.textContent = "KP";
           kinoBtn.title = "Искать на kino.pub";
-          kinoBtn.addEventListener("click", (e) => { e.stopPropagation(); });
+          kinoBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const kinoUrl = `https://kino.pub/item/search?type=${kinoType}&mode=&query=${encodeURIComponent(kinoQuery)}`;
+            window.open(kinoUrl, "_blank", "noopener,noreferrer");
+          });
           actions.appendChild(kinoBtn);
         }
 
