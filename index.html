@@ -2584,6 +2584,7 @@ body::before{
     // Basic utility helpers
     function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
     function normalize(s){ return String(s ?? "").trim().toLowerCase(); }
+
     function pluralRu(n, one, few, many){
       const mod10 = n % 10;
       const mod100 = n % 100;
@@ -2594,6 +2595,8 @@ body::before{
     function formatSeriesCount(n){ return `${n} ${pluralRu(n, "серия", "серии", "серий")}`; }
     function formatHoursCount(n){ return `${n} ${pluralRu(n, "час", "часа", "часов")}`; }
     function formatWeeksCount(n){ return `${n} ${pluralRu(n, "неделя", "недели", "недель")}`; }
+
+
     // Builds link to Kino.pub with best-known title and content type.
     function kinoPubSearchUrl(movie, kind){
       const typeRaw = getTypeOfMovie(movie);
