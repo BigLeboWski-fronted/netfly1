@@ -2476,6 +2476,45 @@ body::before{
   </div>
 </div>
 
+        <div class="profileSection">
+          <div class="secHead">
+            <h3>Общая база (PocketBase)</h3>
+            <div class="small">Чтобы данные синхронизировались между ПК и телефоном</div>
+          </div>
+
+          <div class="statRow">
+            <span>Статус подключения</span>
+            <b id="pbStatus">Не подключено</b>
+          </div>
+
+          <div class="fieldRow">
+            <label class="small" for="pbUrl">Адрес PocketBase</label>
+            <div class="nameRow">
+              <input id="pbUrl" type="url" placeholder="http://192.168.1.10:8090" />
+              <button id="pbSaveUrlBtn" type="button">Сохранить</button>
+            </div>
+            <div class="small muted">Для телефона укажи IP‑адрес твоего ПК в локальной сети.</div>
+          </div>
+
+          <div class="formGrid2" style="margin-top:10px;">
+            <div>
+              <label for="pbEmail">Email</label>
+              <input id="pbEmail" type="email" placeholder="you@mail.com" />
+            </div>
+            <div>
+              <label for="pbPassword">Пароль</label>
+              <input id="pbPassword" type="password" placeholder="••••••••" />
+            </div>
+          </div>
+
+          <div class="btns" style="margin-top:10px;">
+            <button class="primary" id="pbLoginBtn" type="button">Войти</button>
+            <button id="pbRegisterBtn" type="button">Регистрация</button>
+            <button class="danger" id="pbLogoutBtn" type="button">Выйти</button>
+          </div>
+          <div class="small muted" id="pbHint">Войди одним и тем же аккаунтом на ПК и телефоне.</div>
+        </div>
+
 
         <div class="statTiles" id="profileTiles"></div>
 
@@ -2563,15 +2602,18 @@ body::before{
     </div>
 
 
+  <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
   <script>
     // ========= Config =========
     // External endpoints + local storage keys live here so they are easy to update.
     const OMDB_BASE = "https://omdb-proxy.makeenkoroma69.workers.dev/";
+    const DEFAULT_PB_URL = "http://127.0.0.1:8090";
 
     const STORAGE_KEY_V6 = "netfly_movies_v6";
     const PROFILE_KEY_V2 = "netfly_profile_v2";
     const NOW_KEY_V1 = "netfly_now_v1";
     const OMDB_EP_CACHE_V1 = "netfly_omdb_eps_v1";
+    const PB_URL_KEY = "netfly_pb_url_v1";
 
     // Navigation tabs (id must match view section ids).
     const VIEWS = [
@@ -2596,6 +2638,7 @@ body::before{
       { key: "engage",   label: "Вовлечённость" },
       { key: "emotions", label: "Эмоции после просмотра" }
     ];
+    const DEFAULT_SCORES = { overall: 0, engage: 0, emotions: 0 };
 
     // ========= Elements =========
     // Cache all DOM references in one place to avoid repeated queries.
@@ -2620,6 +2663,15 @@ body::before{
       profileManualGenreChips: document.getElementById("profileManualGenreChips"),
       profileTagline: document.getElementById("profileTagline"),
       profileSubtitle: document.getElementById("profileSubtitle"),
+      pbStatus: document.getElementById("pbStatus"),
+      pbUrl: document.getElementById("pbUrl"),
+      pbSaveUrlBtn: document.getElementById("pbSaveUrlBtn"),
+      pbEmail: document.getElementById("pbEmail"),
+      pbPassword: document.getElementById("pbPassword"),
+      pbLoginBtn: document.getElementById("pbLoginBtn"),
+      pbRegisterBtn: document.getElementById("pbRegisterBtn"),
+      pbLogoutBtn: document.getElementById("pbLogoutBtn"),
+      pbHint: document.getElementById("pbHint"),
       favMovieCard: document.getElementById("favMovieCard"),
       favSeriesCard: document.getElementById("favSeriesCard"),
       favDirectorCard: document.getElementById("favDirectorCard"),
@@ -2701,6 +2753,18 @@ body::before{
     let currentView = "home";
     let wishKindActive = "movie"; // "movie" | "series"
 
+    let pb = null;
+    let pbReady = false;
+    let pbProfileId = null;
+    let pbNowId = null;
+    let pbEpCacheId = null;
+    const pbSyncTimers = {
+      movies: null,
+      profile: null,
+      now: null,
+      epCache: null,
+    };
+
     let movies = loadMovies();
     let profile = loadProfile();
     let nowState = loadNowState();
@@ -2758,6 +2822,345 @@ body::before{
     function formatSeriesCount(n){ return `${n} ${pluralRu(n, "серия", "серии", "серий")}`; }
     function formatHoursCount(n){ return `${n} ${pluralRu(n, "час", "часа", "часов")}`; }
     function formatWeeksCount(n){ return `${n} ${pluralRu(n, "неделя", "недели", "недель")}`; }
+
+    // PocketBase helpers
+    function getPbUrl(){
+      return localStorage.getItem(PB_URL_KEY) || DEFAULT_PB_URL;
+    }
+
+    function setPbUrl(url){
+      const clean = String(url || "").trim();
+      if(!clean) return;
+      localStorage.setItem(PB_URL_KEY, clean);
+    }
+
+    function updatePbStatus(extra){
+      if(!els.pbStatus) return;
+      if(!pbReady){
+        els.pbStatus.textContent = "PocketBase не подключён";
+      }else if(pb?.authStore?.isValid){
+        const email = pb.authStore.model?.email || "пользователь";
+        els.pbStatus.textContent = `Вошли как ${email}`;
+      }else{
+        els.pbStatus.textContent = "Не авторизован";
+      }
+      if(els.pbHint && extra) els.pbHint.textContent = extra;
+    }
+
+    function initPocketBase(){
+      if(!window.PocketBase) return;
+      const url = getPbUrl();
+      pb = new PocketBase(url);
+      pbReady = true;
+      if(els.pbUrl) els.pbUrl.value = url;
+      updatePbStatus();
+      if(pb.authStore?.isValid){
+        syncFromPocketBase();
+      }
+    }
+
+    function schedulePbSync(type, fn){
+      if(!pbReady || !pb?.authStore?.isValid) return;
+      if(pbSyncTimers[type]) window.clearTimeout(pbSyncTimers[type]);
+      pbSyncTimers[type] = window.setTimeout(() => {
+        fn().catch(err => {
+          console.warn("PocketBase sync error:", err);
+          updatePbStatus("Ошибка синхронизации. Проверь соединение с PocketBase.");
+        });
+      }, 400);
+    }
+
+    function movieToRecord(movie, userId){
+      return {
+        user: userId,
+        name: movie.name || "",
+        director: movie.director || "",
+        year: Number.isFinite(Number(movie.year)) ? Number(movie.year) : null,
+        status: movie.status || "watched",
+        tags: Array.isArray(movie.tags) ? movie.tags : [],
+        notes: movie.notes || "",
+        scores: movie.scores || {},
+        favorite: !!movie.favorite,
+        queueOrder: Number.isFinite(Number(movie.queueOrder)) ? Number(movie.queueOrder) : null,
+        omdb: movie.omdb || null,
+        createdAt: movie.createdAt ? new Date(movie.createdAt).toISOString() : null,
+      };
+    }
+
+    function recordToMovie(r){
+      return {
+        id: r.id,
+        _pbId: r.id,
+        name: r.name || "",
+        director: r.director || "",
+        year: Number.isFinite(Number(r.year)) ? Number(r.year) : null,
+        status: r.status || "watched",
+        tags: Array.isArray(r.tags) ? r.tags : [],
+        notes: r.notes || "",
+        scores: { ...DEFAULT_SCORES, ...(r.scores || {}) },
+        favorite: !!r.favorite,
+        queueOrder: Number.isFinite(Number(r.queueOrder)) ? Number(r.queueOrder) : null,
+        omdb: r.omdb || null,
+        createdAt: r.createdAt ? new Date(r.createdAt).getTime() : Date.now(),
+        isNow: !!r.isNow,
+      };
+    }
+
+    function profileToRecord(p, userId){
+      return {
+        user: userId,
+        favDirectorName: p.favDirectorName || "",
+        favActorName: p.favActorName || "",
+        favMovieId: p.favMovieId || null,
+        favSeriesId: p.favSeriesId || null,
+        tagline: p.tagline || "",
+        manualGenres: Array.isArray(p.manualGenres) ? p.manualGenres : [],
+      };
+    }
+
+    function recordToProfile(r){
+      return {
+        favDirectorName: r.favDirectorName || "",
+        favActorName: r.favActorName || "",
+        favMovieId: r.favMovieId || null,
+        favSeriesId: r.favSeriesId || null,
+        tagline: r.tagline || "",
+        manualGenres: Array.isArray(r.manualGenres) ? r.manualGenres : [],
+      };
+    }
+
+    function nowToRecord(n, userId){
+      return {
+        user: userId,
+        imdbID: n.imdbID || null,
+        title: n.title || "",
+        posterUrl: n.posterUrl || null,
+        startedAt: n.startedAt ? new Date(n.startedAt).toISOString() : null,
+        runtimeMin: Number.isFinite(Number(n.runtimeMin)) ? Number(n.runtimeMin) : null,
+        totalSeasons: Number.isFinite(Number(n.totalSeasons)) ? Number(n.totalSeasons) : null,
+        watched: n.watched || {},
+        watchLog: Array.isArray(n.watchLog) ? n.watchLog : [],
+        activityDays: Array.isArray(n.activityDays) ? n.activityDays : [],
+        streakOn: (n.streakOn ?? true) ? true : false,
+        goalEps: Number.isFinite(Number(n.goalEps)) ? Number(n.goalEps) : 0,
+      };
+    }
+
+    function recordToNow(r){
+      return {
+        imdbID: r.imdbID || null,
+        title: r.title || "",
+        posterUrl: r.posterUrl || null,
+        sourceMovieId: r.sourceMovieId || null,
+        finishPromptedFor: r.finishPromptedFor || null,
+        finishDismissedFor: r.finishDismissedFor || null,
+        startedAt: r.startedAt ? new Date(r.startedAt).getTime() : null,
+        runtimeMin: Number.isFinite(Number(r.runtimeMin)) ? Number(r.runtimeMin) : null,
+        totalSeasons: Number.isFinite(Number(r.totalSeasons)) ? Number(r.totalSeasons) : null,
+        watched: (r.watched && typeof r.watched === "object") ? r.watched : {},
+        watchLog: Array.isArray(r.watchLog) ? r.watchLog : [],
+        activityDays: Array.isArray(r.activityDays) ? r.activityDays : [],
+        streakOn: (r.streakOn ?? true) ? true : false,
+        goalEps: Number.isFinite(Number(r.goalEps)) ? Number(r.goalEps) : 0,
+      };
+    }
+
+    async function syncFromPocketBase(){
+      if(!pbReady || !pb?.authStore?.isValid) return;
+      const userId = pb.authStore.model?.id;
+      if(!userId) return;
+
+      const remoteMovies = await pb.collection("movies").getFullList({
+        filter: `user="${userId}"`,
+        perPage: 200,
+        sort: "-createdAt",
+      });
+      movies = remoteMovies.map(recordToMovie);
+      saveMovies({ skipPb: true });
+
+      const profileRec = await pb.collection("profiles").getFirstListItem(`user="${userId}"`).catch(() => null);
+      if(profileRec){
+        pbProfileId = profileRec.id;
+        profile = recordToProfile(profileRec);
+        saveProfile(profile, { skipPb: true });
+      }
+
+      const nowRec = await pb.collection("now_states").getFirstListItem(`user="${userId}"`).catch(() => null);
+      if(nowRec){
+        pbNowId = nowRec.id;
+        nowState = recordToNow(nowRec);
+        saveNowState({ skipPb: true });
+      }
+
+      try{
+        const epRec = await pb.collection("omdb_ep_cache").getFirstListItem(`user="${userId}"`);
+        if(epRec){
+          pbEpCacheId = epRec.id;
+          omdbEpCache = (epRec.cache && typeof epRec.cache === "object") ? epRec.cache : omdbEpCache;
+          saveEpCache({ skipPb: true });
+        }
+      }catch{
+        // optional collection, ignore if missing
+      }
+
+      renderEverything();
+      updatePbStatus("Данные синхронизированы.");
+    }
+
+    async function syncLocalToPocketBase(){
+      if(!pbReady || !pb?.authStore?.isValid) return;
+      const userId = pb.authStore.model?.id;
+      if(!userId) return;
+
+      const remoteMovies = await pb.collection("movies").getFullList({ filter: `user="${userId}"`, perPage: 1 });
+      if(remoteMovies.length === 0 && movies.length){
+        const idMap = {};
+        for(const movie of movies){
+          const created = await pb.collection("movies").create(movieToRecord(movie, userId));
+          idMap[movie.id] = created.id;
+          movie.id = created.id;
+          movie._pbId = created.id;
+        }
+        if(profile?.favMovieId && idMap[profile.favMovieId]) profile.favMovieId = idMap[profile.favMovieId];
+        if(profile?.favSeriesId && idMap[profile.favSeriesId]) profile.favSeriesId = idMap[profile.favSeriesId];
+        saveMovies({ skipPb: true });
+        saveProfile(profile, { skipPb: true });
+      }
+
+      const profileRec = await pb.collection("profiles").getFirstListItem(`user="${userId}"`).catch(() => null);
+      if(!profileRec){
+        const created = await pb.collection("profiles").create(profileToRecord(profile, userId));
+        pbProfileId = created.id;
+      }
+
+      const nowRec = await pb.collection("now_states").getFirstListItem(`user="${userId}"`).catch(() => null);
+      if(!nowRec){
+        const created = await pb.collection("now_states").create(nowToRecord(nowState, userId));
+        pbNowId = created.id;
+      }
+
+      try{
+        const epRec = await pb.collection("omdb_ep_cache").getFirstListItem(`user="${userId}"`).catch(() => null);
+        if(!epRec){
+          const created = await pb.collection("omdb_ep_cache").create({
+            user: userId,
+            cache: omdbEpCache || {},
+          });
+          pbEpCacheId = created.id;
+        }
+      }catch{
+        // optional collection, ignore if missing
+      }
+    }
+
+    async function syncMoviesToPocketBase(){
+      if(!pbReady || !pb?.authStore?.isValid) return;
+      const userId = pb.authStore.model?.id;
+      if(!userId) return;
+
+      const remote = await pb.collection("movies").getFullList({
+        filter: `user="${userId}"`,
+        perPage: 200,
+      });
+      const remoteMap = new Map(remote.map(r => [r.id, r]));
+      const keepIds = new Set();
+
+      for(const movie of movies){
+        const payload = movieToRecord(movie, userId);
+        if(movie._pbId && remoteMap.has(movie._pbId)){
+          await pb.collection("movies").update(movie._pbId, payload);
+          keepIds.add(movie._pbId);
+        }else{
+          const created = await pb.collection("movies").create(payload);
+          movie._pbId = created.id;
+          movie.id = created.id;
+          keepIds.add(created.id);
+        }
+      }
+
+      for(const rec of remote){
+        if(!keepIds.has(rec.id)){
+          await pb.collection("movies").delete(rec.id);
+        }
+      }
+
+      saveMovies({ skipPb: true });
+    }
+
+    async function syncProfileToPocketBase(){
+      if(!pbReady || !pb?.authStore?.isValid) return;
+      const userId = pb.authStore.model?.id;
+      if(!userId) return;
+      const payload = profileToRecord(profile, userId);
+      if(pbProfileId){
+        await pb.collection("profiles").update(pbProfileId, payload);
+      }else{
+        const created = await pb.collection("profiles").create(payload);
+        pbProfileId = created.id;
+      }
+    }
+
+    async function syncNowToPocketBase(){
+      if(!pbReady || !pb?.authStore?.isValid) return;
+      const userId = pb.authStore.model?.id;
+      if(!userId) return;
+      const payload = nowToRecord(nowState, userId);
+      if(pbNowId){
+        await pb.collection("now_states").update(pbNowId, payload);
+      }else{
+        const created = await pb.collection("now_states").create(payload);
+        pbNowId = created.id;
+      }
+    }
+
+    async function syncEpCacheToPocketBase(){
+      if(!pbReady || !pb?.authStore?.isValid) return;
+      const userId = pb.authStore.model?.id;
+      if(!userId) return;
+      const payload = { user: userId, cache: omdbEpCache || {} };
+      try{
+        if(pbEpCacheId){
+          await pb.collection("omdb_ep_cache").update(pbEpCacheId, payload);
+        }else{
+          const created = await pb.collection("omdb_ep_cache").create(payload);
+          pbEpCacheId = created.id;
+        }
+      }catch{
+        // optional collection, ignore if missing
+      }
+    }
+
+    async function loginPocketBase(email, password){
+      if(!pbReady) initPocketBase();
+      const e = String(email || "").trim();
+      const p = String(password || "").trim();
+      if(!e || !p){
+        toast("Введите email и пароль");
+        return;
+      }
+      await pb.collection("users").authWithPassword(e, p);
+      updatePbStatus("Авторизация успешна.");
+      await syncLocalToPocketBase();
+      await syncFromPocketBase();
+    }
+
+    async function registerPocketBase(email, password){
+      if(!pbReady) initPocketBase();
+      const e = String(email || "").trim();
+      const p = String(password || "").trim();
+      if(!e || !p){
+        toast("Введите email и пароль");
+        return;
+      }
+      await pb.collection("users").create({ email: e, password: p, passwordConfirm: p });
+      await loginPocketBase(e, p);
+      updatePbStatus("Аккаунт создан.");
+    }
+
+    function logoutPocketBase(){
+      if(pb?.authStore) pb.authStore.clear();
+      updatePbStatus("Вы вышли из аккаунта.");
+    }
 
 
 
@@ -3028,8 +3431,9 @@ function format1(n){ return (Math.round(Number(n) * 10) / 10).toFixed(1); }
     }
 
     // ========= Storage =========
-    function saveMovies(){
+    function saveMovies(options = {}){
       localStorage.setItem(STORAGE_KEY_V6, JSON.stringify(movies));
+      if(!options.skipPb) schedulePbSync("movies", syncMoviesToPocketBase);
     }
     function safeRead(key){
       try{
@@ -3094,8 +3498,9 @@ function loadProfile(){
       return out;
     }
 
-    function saveProfile(p){
+    function saveProfile(p, options = {}){
       localStorage.setItem(PROFILE_KEY_V2, JSON.stringify(p));
+      if(!options.skipPb) schedulePbSync("profile", syncProfileToPocketBase);
     }
     // ========= Now Watching storage =========
     function loadNowState(){
@@ -3128,16 +3533,18 @@ function loadProfile(){
         goalEps: Number.isFinite(Number(p.goalEps)) ? Number(p.goalEps) : 0,
       };
     }
-    function saveNowState(){
+    function saveNowState(options = {}){
       localStorage.setItem(NOW_KEY_V1, JSON.stringify(nowState));
+      if(!options.skipPb) schedulePbSync("now", syncNowToPocketBase);
     }
 
     function loadEpCache(){
       const p = safeReadObj(OMDB_EP_CACHE_V1) || {};
       return (p && typeof p === "object") ? p : {};
     }
-    function saveEpCache(){
+    function saveEpCache(options = {}){
       localStorage.setItem(OMDB_EP_CACHE_V1, JSON.stringify(omdbEpCache));
+      if(!options.skipPb) schedulePbSync("epCache", syncEpCacheToPocketBase);
     }
 
     function parseRuntimeMinutes(runtimeStr){
@@ -6791,7 +7198,44 @@ if(finishToRated){
     els.resetBtn.addEventListener("click", resetSliders);
 
     // profile save/clear
-    
+    if(els.pbSaveUrlBtn){
+      els.pbSaveUrlBtn.addEventListener("click", () => {
+        const url = (els.pbUrl?.value || "").trim();
+        if(!url){
+          toast("Укажи адрес PocketBase");
+          return;
+        }
+        setPbUrl(url);
+        initPocketBase();
+        toast("PocketBase", "Адрес сохранён");
+      });
+    }
+
+    if(els.pbLoginBtn){
+      els.pbLoginBtn.addEventListener("click", async () => {
+        try{
+          await loginPocketBase(els.pbEmail?.value, els.pbPassword?.value);
+        }catch(e){
+          toast("Ошибка входа", "Проверь email/пароль и адрес сервера.");
+        }
+      });
+    }
+
+    if(els.pbRegisterBtn){
+      els.pbRegisterBtn.addEventListener("click", async () => {
+        try{
+          await registerPocketBase(els.pbEmail?.value, els.pbPassword?.value);
+        }catch(e){
+          toast("Ошибка регистрации", "Проверь email/пароль и адрес сервера.");
+        }
+      });
+    }
+
+    if(els.pbLogoutBtn){
+      els.pbLogoutBtn.addEventListener("click", () => {
+        logoutPocketBase();
+      });
+    }
     
     // ========= Init =========
     function renderEverything(){
@@ -6809,6 +7253,8 @@ if(finishToRated){
   renderSliders();
   updateTotals();
   renderHome();
+
+  initPocketBase();
 
   // Cinema night init
   const on = loadCinemaNight();
