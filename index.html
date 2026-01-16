@@ -836,6 +836,112 @@ details[open] .itemBody{
 .posterBigImg img{ width:100%; height:100%; object-fit: cover; display:block; }
 .posterMeta{ min-width: 240px; flex:1; }
 
+@media (max-width: 680px){
+  .topbarInner{
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .nav{
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+  .navBtn{
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .wrap{
+    margin: 10px auto 20px;
+  }
+  .card{
+    padding: 12px;
+  }
+  .homeTitle{
+    font-size: 34px;
+  }
+  .listTop{
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .nameRow{
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .formGrid,
+  .formGrid2{
+    grid-template-columns: 1fr;
+  }
+  .rowTop{
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .summary{
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .score{
+    min-width: 0;
+    width: 100%;
+  }
+  .btns{
+    justify-content: flex-start;
+  }
+  details.item summary{
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .sumRight{
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  .controls{
+    grid-template-columns: 1fr !important;
+  }
+  .posterBig{
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .posterBigImg{
+    width: min(240px, 100%);
+    height: auto;
+    aspect-ratio: 2 / 3;
+    margin: 0 auto;
+  }
+  .posterMeta{
+    min-width: 0;
+  }
+  .sessionRow{
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .profileHero{
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .avatarCircle{
+    width: 48px;
+    height: 48px;
+  }
+  .profileTitle{
+    font-size: 20px;
+  }
+  .profileSubtitle{
+    font-size: 12px;
+  }
+  .statTiles{
+    grid-template-columns: 1fr;
+  }
+  .profileSection{
+    padding: 12px;
+  }
+  .favGrid{
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Quick actions */
 .quickActions{ display:flex; gap: 8px; align-items:center; }
 .iconBtn{
@@ -1913,6 +2019,57 @@ body.cinemaNight .topbar{
 }
 .nextBanner.hidden{ display:none; }
 
+/* Finished prompt + confetti */
+.finishPrompt{
+  margin-top: 12px;
+  border: 1px solid rgba(255,255,255,.25);
+  background: linear-gradient(140deg, rgba(255,255,255,.12), rgba(255,255,255,.05));
+  border-radius: 16px;
+  padding: 12px 14px;
+  display:flex;
+  flex-direction:column;
+  gap: 8px;
+  position:relative;
+  overflow:hidden;
+}
+.finishTitle{
+  font-weight: 1000;
+  font-size: 14px;
+}
+.finishSubtitle{
+  color: var(--muted);
+  font-size: 13px;
+}
+.finishActions{
+  display:flex;
+  flex-wrap:wrap;
+  gap: 8px;
+}
+.confettiLayer{
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 200;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.confettiLayer.show{ opacity: 1; }
+.confettiPiece{
+  position:absolute;
+  width: 8px;
+  height: 14px;
+  border-radius: 3px;
+  opacity: 0;
+  animation: confettiFall var(--duration) ease-in var(--delay) forwards;
+  transform: translate3d(0,-10vh,0) rotate(0deg);
+}
+@keyframes confettiFall{
+  0%{ transform: translate3d(0,-10vh,0) rotate(0deg); opacity:0; }
+  10%{ opacity: 1; }
+  100%{ transform: translate3d(var(--drift), 110vh, 0) rotate(360deg); opacity:0; }
+}
+
 /* Episode focus highlight */
 .epRow.focusNext{
   outline: 2px solid rgba(255,255,255,.85);
@@ -2197,6 +2354,7 @@ body::before{
               <button type="button" class="segBtn wishKindBtn" data-kind="movie">Фильмы</button>
               <button type="button" class="segBtn wishKindBtn" data-kind="series">Сериалы</button>
             </div>
+            <button id="wishMoviesRandomBtn" type="button">Случайный фильм</button>
             <button class="danger" id="clearAllWishMoviesBtn" type="button">Очистить очередь</button>
           </div>
 
@@ -2224,6 +2382,7 @@ body::before{
               <button type="button" class="segBtn wishKindBtn" data-kind="movie">Фильмы</button>
               <button type="button" class="segBtn wishKindBtn" data-kind="series">Сериалы</button>
             </div>
+            <button id="wishSeriesRandomBtn" type="button">Случайный сериал</button>
             <button class="danger" id="clearAllWishSeriesBtn" type="button">Очистить очередь</button>
           </div>
 
@@ -2253,6 +2412,7 @@ body::before{
           <div id="nowNextBanner" class="nextBanner hidden" role="button" tabindex="0"></div>
           <div id="nowFinishedPrompt" class="finishPrompt hidden">
             <div class="finishTitle">Похоже, сериал досмотрен 🎬</div>
+            <div class="finishSubtitle">Поздравляем! Отличная работа — весь сезон(ы) позади.</div>
             <div class="finishActions">
               <button class="primary" id="finishToEvaluate" type="button">В “Оценить”</button>
               <button class="ghost" id="finishToRated" type="button">В “Оцененные”</button>
@@ -2514,8 +2674,10 @@ body::before{
       wishSeriesList: document.getElementById("wishSeriesList"),
       wishMoviesSearch: document.getElementById("wishMoviesSearch"),
       wishSeriesSearch: document.getElementById("wishSeriesSearch"),
-            wishMoviesStats: document.getElementById("wishMoviesStats"),
+      wishMoviesStats: document.getElementById("wishMoviesStats"),
       wishSeriesStats: document.getElementById("wishSeriesStats"),
+      wishMoviesRandomBtn: document.getElementById("wishMoviesRandomBtn"),
+      wishSeriesRandomBtn: document.getElementById("wishSeriesRandomBtn"),
       clearAllWishMoviesBtn: document.getElementById("clearAllWishMoviesBtn"),
       clearAllWishSeriesBtn: document.getElementById("clearAllWishSeriesBtn"),
       // now watching
@@ -2777,6 +2939,45 @@ function animateRemoveDetails(detailsEl, done){
         el.classList.add("toastOut");
         setTimeout(() => el.remove(), 180);
       }
+    }
+
+    let confettiActive = false;
+    function launchConfetti(){
+      const layer = document.getElementById("confettiLayer");
+      if(!layer || confettiActive) return;
+      confettiActive = true;
+      layer.innerHTML = "";
+      layer.classList.add("show");
+
+      const colors = ["#ffffff", "#f0f0f0", "#d7d7d7", "#bdbdbd"];
+      const pieces = 70;
+      let maxDuration = 0;
+
+      for(let i = 0; i < pieces; i += 1){
+        const piece = document.createElement("span");
+        piece.className = "confettiPiece";
+        const size = Math.random() * 6 + 6;
+        const delay = Math.random() * 0.8;
+        const duration = Math.random() * 1.8 + 2.4;
+        maxDuration = Math.max(maxDuration, delay + duration);
+
+        piece.style.width = `${size}px`;
+        piece.style.height = `${size * 1.6}px`;
+        piece.style.left = `${Math.random() * 100}%`;
+        piece.style.background = colors[i % colors.length];
+        piece.style.setProperty("--delay", `${delay}s`);
+        piece.style.setProperty("--duration", `${duration}s`);
+        piece.style.setProperty("--drift", `${(Math.random() * 2 - 1) * 20}vw`);
+        piece.style.transform = `translate3d(0,-10vh,0) rotate(${Math.random() * 360}deg)`;
+        layer.appendChild(piece);
+      }
+
+      window.clearTimeout(launchConfetti._t);
+      launchConfetti._t = window.setTimeout(() => {
+        layer.classList.remove("show");
+        layer.innerHTML = "";
+        confettiActive = false;
+      }, (maxDuration * 1000) + 300);
     }
 function format1(n){ return (Math.round(Number(n) * 10) / 10).toFixed(1); }
 
@@ -5174,6 +5375,21 @@ const actorsBlock = buildActorsBlock(movie, q);
       el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
+    function openWishItem(id, kind){
+      const k = kind === "series" ? "series" : "movie";
+      const listEl = k === "series" ? els.wishSeriesList : els.wishMoviesList;
+      if(!listEl) return;
+      const el = listEl.querySelector(`details.item[data-id="${CSS.escape(id)}"]`);
+      if(!el) return;
+
+      el.open = true;
+      closeOtherOpenedDetails(listEl, el);
+      el.classList.remove("flash");
+      void el.offsetWidth;
+      el.classList.add("flash");
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
     // ========= Wish queue =========
     function getWishList(kind){
       const k = kind === "series" ? "series" : "movie";
@@ -5190,6 +5406,29 @@ const actorsBlock = buildActorsBlock(movie, q);
 
       arr.sort((a,b) => Number(a.queueOrder || 0) - Number(b.queueOrder || 0));
       return arr;
+    }
+
+    function pickRandomWish(kind){
+      const k = kind === "series" ? "series" : "movie";
+      const list = getWishList(k);
+      if(list.length === 0){
+        toast("Очередь пуста", "Добавь что-нибудь в “Буду смотреть”.");
+        return;
+      }
+
+      const choice = list[Math.floor(Math.random() * list.length)];
+
+      if(currentView !== "wish"){
+        setWishKind(k);
+        goTo("wish");
+      }else if(wishKindActive !== k){
+        setWishKind(k);
+      }else{
+        renderWishKind(k);
+      }
+
+      requestAnimationFrame(() => openWishItem(choice.id, k));
+      toast("Случайный выбор", choice.name || "Без названия");
     }
 
     function updateWishOrderFromDOM(kind){
@@ -5951,6 +6190,7 @@ body.appendChild(actionsRow);
           nowState.finishPromptedFor = nowState.imdbID;
           nowState.finishDismissedFor = null;
           saveNowState();
+          launchConfetti();
         }
 
         fp.classList.toggle("hidden", !finished || dismissed);
@@ -6362,6 +6602,13 @@ function renderWishSeries(){ renderWishKind("series"); }
       if(currentView === "wish") renderWish();
     });
 
+    if(els.wishMoviesRandomBtn){
+      els.wishMoviesRandomBtn.addEventListener("click", () => pickRandomWish("movie"));
+    }
+    if(els.wishSeriesRandomBtn){
+      els.wishSeriesRandomBtn.addEventListener("click", () => pickRandomWish("series"));
+    }
+
     els.prevPageBtn.addEventListener("click", () => {
       ratedPage = Math.max(1, ratedPage - 1);
       renderRated();
@@ -6590,6 +6837,7 @@ init();
     <option value="Хочу пересмотреть"></option>
   </datalist>
 
+  <div id="confettiLayer" class="confettiLayer" aria-hidden="true"></div>
   <div id="toastHost" class="toastHost"></div>
 </body>
 </html>
