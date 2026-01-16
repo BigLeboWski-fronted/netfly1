@@ -1913,6 +1913,57 @@ body.cinemaNight .topbar{
 }
 .nextBanner.hidden{ display:none; }
 
+/* Finished prompt + confetti */
+.finishPrompt{
+  margin-top: 12px;
+  border: 1px solid rgba(255,255,255,.25);
+  background: linear-gradient(140deg, rgba(255,255,255,.12), rgba(255,255,255,.05));
+  border-radius: 16px;
+  padding: 12px 14px;
+  display:flex;
+  flex-direction:column;
+  gap: 8px;
+  position:relative;
+  overflow:hidden;
+}
+.finishTitle{
+  font-weight: 1000;
+  font-size: 14px;
+}
+.finishSubtitle{
+  color: var(--muted);
+  font-size: 13px;
+}
+.finishActions{
+  display:flex;
+  flex-wrap:wrap;
+  gap: 8px;
+}
+.confettiLayer{
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 200;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.confettiLayer.show{ opacity: 1; }
+.confettiPiece{
+  position:absolute;
+  width: 8px;
+  height: 14px;
+  border-radius: 3px;
+  opacity: 0;
+  animation: confettiFall var(--duration) ease-in var(--delay) forwards;
+  transform: translate3d(0,-10vh,0) rotate(0deg);
+}
+@keyframes confettiFall{
+  0%{ transform: translate3d(0,-10vh,0) rotate(0deg); opacity:0; }
+  10%{ opacity: 1; }
+  100%{ transform: translate3d(var(--drift), 110vh, 0) rotate(360deg); opacity:0; }
+}
+
 /* Episode focus highlight */
 .epRow.focusNext{
   outline: 2px solid rgba(255,255,255,.85);
@@ -2253,6 +2304,7 @@ body::before{
           <div id="nowNextBanner" class="nextBanner hidden" role="button" tabindex="0"></div>
           <div id="nowFinishedPrompt" class="finishPrompt hidden">
             <div class="finishTitle">Похоже, сериал досмотрен 🎬</div>
+            <div class="finishSubtitle">Поздравляем! Отличная работа — весь сезон(ы) позади.</div>
             <div class="finishActions">
               <button class="primary" id="finishToEvaluate" type="button">В “Оценить”</button>
               <button class="ghost" id="finishToRated" type="button">В “Оцененные”</button>
@@ -2777,6 +2829,45 @@ function animateRemoveDetails(detailsEl, done){
         el.classList.add("toastOut");
         setTimeout(() => el.remove(), 180);
       }
+    }
+
+    let confettiActive = false;
+    function launchConfetti(){
+      const layer = document.getElementById("confettiLayer");
+      if(!layer || confettiActive) return;
+      confettiActive = true;
+      layer.innerHTML = "";
+      layer.classList.add("show");
+
+      const colors = ["#ffffff", "#f0f0f0", "#d7d7d7", "#bdbdbd"];
+      const pieces = 70;
+      let maxDuration = 0;
+
+      for(let i = 0; i < pieces; i += 1){
+        const piece = document.createElement("span");
+        piece.className = "confettiPiece";
+        const size = Math.random() * 6 + 6;
+        const delay = Math.random() * 0.8;
+        const duration = Math.random() * 1.8 + 2.4;
+        maxDuration = Math.max(maxDuration, delay + duration);
+
+        piece.style.width = `${size}px`;
+        piece.style.height = `${size * 1.6}px`;
+        piece.style.left = `${Math.random() * 100}%`;
+        piece.style.background = colors[i % colors.length];
+        piece.style.setProperty("--delay", `${delay}s`);
+        piece.style.setProperty("--duration", `${duration}s`);
+        piece.style.setProperty("--drift", `${(Math.random() * 2 - 1) * 20}vw`);
+        piece.style.transform = `translate3d(0,-10vh,0) rotate(${Math.random() * 360}deg)`;
+        layer.appendChild(piece);
+      }
+
+      window.clearTimeout(launchConfetti._t);
+      launchConfetti._t = window.setTimeout(() => {
+        layer.classList.remove("show");
+        layer.innerHTML = "";
+        confettiActive = false;
+      }, (maxDuration * 1000) + 300);
     }
 function format1(n){ return (Math.round(Number(n) * 10) / 10).toFixed(1); }
 
@@ -5951,6 +6042,7 @@ body.appendChild(actionsRow);
           nowState.finishPromptedFor = nowState.imdbID;
           nowState.finishDismissedFor = null;
           saveNowState();
+          launchConfetti();
         }
 
         fp.classList.toggle("hidden", !finished || dismissed);
@@ -6590,6 +6682,7 @@ init();
     <option value="Хочу пересмотреть"></option>
   </datalist>
 
+  <div id="confettiLayer" class="confettiLayer" aria-hidden="true"></div>
   <div id="toastHost" class="toastHost"></div>
 </body>
 </html>
