@@ -2354,6 +2354,7 @@ body::before{
               <button type="button" class="segBtn wishKindBtn" data-kind="movie">Фильмы</button>
               <button type="button" class="segBtn wishKindBtn" data-kind="series">Сериалы</button>
             </div>
+            <button id="wishMoviesRandomBtn" type="button">Случайный фильм</button>
             <button class="danger" id="clearAllWishMoviesBtn" type="button">Очистить очередь</button>
           </div>
 
@@ -2381,6 +2382,7 @@ body::before{
               <button type="button" class="segBtn wishKindBtn" data-kind="movie">Фильмы</button>
               <button type="button" class="segBtn wishKindBtn" data-kind="series">Сериалы</button>
             </div>
+            <button id="wishSeriesRandomBtn" type="button">Случайный сериал</button>
             <button class="danger" id="clearAllWishSeriesBtn" type="button">Очистить очередь</button>
           </div>
 
@@ -2672,8 +2674,10 @@ body::before{
       wishSeriesList: document.getElementById("wishSeriesList"),
       wishMoviesSearch: document.getElementById("wishMoviesSearch"),
       wishSeriesSearch: document.getElementById("wishSeriesSearch"),
-            wishMoviesStats: document.getElementById("wishMoviesStats"),
+      wishMoviesStats: document.getElementById("wishMoviesStats"),
       wishSeriesStats: document.getElementById("wishSeriesStats"),
+      wishMoviesRandomBtn: document.getElementById("wishMoviesRandomBtn"),
+      wishSeriesRandomBtn: document.getElementById("wishSeriesRandomBtn"),
       clearAllWishMoviesBtn: document.getElementById("clearAllWishMoviesBtn"),
       clearAllWishSeriesBtn: document.getElementById("clearAllWishSeriesBtn"),
       // now watching
@@ -5371,6 +5375,21 @@ const actorsBlock = buildActorsBlock(movie, q);
       el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
+    function openWishItem(id, kind){
+      const k = kind === "series" ? "series" : "movie";
+      const listEl = k === "series" ? els.wishSeriesList : els.wishMoviesList;
+      if(!listEl) return;
+      const el = listEl.querySelector(`details.item[data-id="${CSS.escape(id)}"]`);
+      if(!el) return;
+
+      el.open = true;
+      closeOtherOpenedDetails(listEl, el);
+      el.classList.remove("flash");
+      void el.offsetWidth;
+      el.classList.add("flash");
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
     // ========= Wish queue =========
     function getWishList(kind){
       const k = kind === "series" ? "series" : "movie";
@@ -5387,6 +5406,29 @@ const actorsBlock = buildActorsBlock(movie, q);
 
       arr.sort((a,b) => Number(a.queueOrder || 0) - Number(b.queueOrder || 0));
       return arr;
+    }
+
+    function pickRandomWish(kind){
+      const k = kind === "series" ? "series" : "movie";
+      const list = getWishList(k);
+      if(list.length === 0){
+        toast("Очередь пуста", "Добавь что-нибудь в “Буду смотреть”.");
+        return;
+      }
+
+      const choice = list[Math.floor(Math.random() * list.length)];
+
+      if(currentView !== "wish"){
+        setWishKind(k);
+        goTo("wish");
+      }else if(wishKindActive !== k){
+        setWishKind(k);
+      }else{
+        renderWishKind(k);
+      }
+
+      requestAnimationFrame(() => openWishItem(choice.id, k));
+      toast("Случайный выбор", choice.name || "Без названия");
     }
 
     function updateWishOrderFromDOM(kind){
@@ -6559,6 +6601,13 @@ function renderWishSeries(){ renderWishKind("series"); }
       renderEverything();
       if(currentView === "wish") renderWish();
     });
+
+    if(els.wishMoviesRandomBtn){
+      els.wishMoviesRandomBtn.addEventListener("click", () => pickRandomWish("movie"));
+    }
+    if(els.wishSeriesRandomBtn){
+      els.wishSeriesRandomBtn.addEventListener("click", () => pickRandomWish("series"));
+    }
 
     els.prevPageBtn.addEventListener("click", () => {
       ratedPage = Math.max(1, ratedPage - 1);
