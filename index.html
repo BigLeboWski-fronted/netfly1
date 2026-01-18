@@ -2774,7 +2774,10 @@ body::before{
     let supabaseClient = null;
     let supabaseUser = null;
     let supabaseSyncTimer = null;
+
     let supabaseRealtimeChannel = null;
+
+
 
     // pulse helper for ⭐ toggle (prevents multiple pulses at once)
     let lastFavPulseId = null;
@@ -3350,6 +3353,7 @@ function loadProfile(){
       }, 900);
     }
 
+
     function subscribeSupabaseRealtime(){
       if(!supabaseClient || !supabaseUser) return;
       if(supabaseRealtimeChannel){
@@ -3384,6 +3388,8 @@ function loadProfile(){
         .subscribe();
     }
 
+
+
     async function initSupabase(){
       if(!window.supabase || !SUPABASE_URL || !SUPABASE_ANON_KEY){
         updateSupabaseUi();
@@ -3394,20 +3400,27 @@ function loadProfile(){
       const { data } = await supabaseClient.auth.getSession();
       supabaseUser = data?.session?.user || null;
       updateSupabaseUi();
+
       if(supabaseUser){
         await pullLibraryFromSupabase("init");
         subscribeSupabaseRealtime();
       }
+
+      if(supabaseUser) await pullLibraryFromSupabase("init");
+
 
       supabaseClient.auth.onAuthStateChange(async (_event, session) => {
         supabaseUser = session?.user || null;
         updateSupabaseUi();
         if(supabaseUser){
           await pullLibraryFromSupabase("auth");
+
           subscribeSupabaseRealtime();
         }else if(supabaseRealtimeChannel){
           supabaseClient.removeChannel(supabaseRealtimeChannel);
           supabaseRealtimeChannel = null;
+
+
         }
       });
     }
