@@ -3275,8 +3275,17 @@ function loadProfile(){
         .maybeSingle();
 
       if(error){
-        setSupabaseStatus("Ошибка загрузки", true);
-        toast("Supabase", "Не удалось загрузить библиотеку.");
+        const msg = String(error.message || "Не удалось загрузить библиотеку.");
+        const hint = String(error.details || error.hint || "");
+        let help = "Проверь таблицу libraries и RLS.";
+        const merged = (msg + " " + hint).toLowerCase();
+        if(merged.includes("does not exist") || merged.includes("relation")){
+          help = "Проверь, что таблица libraries создана.";
+        }else if(merged.includes("permission") || merged.includes("rls")){
+          help = "Проверь политики RLS для таблицы libraries.";
+        }
+        setSupabaseStatus(`Ошибка загрузки: ${msg}`, true);
+        toast("Supabase", `${msg} ${help}`.trim());
         return;
       }
 
@@ -3315,8 +3324,17 @@ function loadProfile(){
         }, { onConflict: "user_id" });
 
       if(error){
-        setSupabaseStatus("Ошибка сохранения", true);
-        if(reason !== "autosync") toast("Supabase", "Не удалось сохранить библиотеку.");
+        const msg = String(error.message || "Не удалось сохранить библиотеку.");
+        const hint = String(error.details || error.hint || "");
+        let help = "Проверь таблицу libraries и RLS.";
+        const merged = (msg + " " + hint).toLowerCase();
+        if(merged.includes("does not exist") || merged.includes("relation")){
+          help = "Проверь, что таблица libraries создана.";
+        }else if(merged.includes("permission") || merged.includes("rls")){
+          help = "Проверь политики RLS для таблицы libraries.";
+        }
+        setSupabaseStatus(`Ошибка сохранения: ${msg}`, true);
+        if(reason !== "autosync") toast("Supabase", `${msg} ${help}`.trim());
         return;
       }
       setSupabaseSyncAt(Date.now());
