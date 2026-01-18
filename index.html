@@ -1171,6 +1171,12 @@ body.muteAnim details.item .itemBody{
   box-shadow: 0 16px 34px rgba(0,0,0,.30);
   animation: fadeUp .18s ease both;
 }
+.supabaseStatus{
+  margin-top: 6px;
+  font-weight: 900;
+  color: var(--muted);
+}
+.supabaseStatus.error{ color: #ff8b8b; }
 .secHead{ display:flex; align-items:flex-end; justify-content:space-between; gap: 10px; margin-bottom: 10px; }
 .secHead h3{ margin:0; font-size: 14px; font-weight: 1000; }
 .genreChips{ display:flex; gap: 8px; flex-wrap:wrap; }
@@ -2465,6 +2471,48 @@ body::before{
           </div>
         </div>
 
+        <div class="profileSection" id="supabaseAuth">
+          <div class="secHead">
+            <h3>Supabase</h3>
+            <div class="small">Регистрация и облако</div>
+          </div>
+          <div class="small supabaseStatus" id="supabaseStatus">Проверяю статус…</div>
+
+          <div id="supabaseLoggedOut">
+            <div class="formGrid2">
+              <div>
+                <label for="supabaseEmail">Email</label>
+                <input id="supabaseEmail" type="email" placeholder="you@email.com" autocomplete="email" />
+              </div>
+              <div>
+                <label for="supabasePassword">Пароль</label>
+                <input id="supabasePassword" type="password" placeholder="Минимум 6 символов" autocomplete="new-password" />
+              </div>
+            </div>
+            <div class="btns" style="justify-content:flex-start; margin-top:10px;">
+              <button class="primary" id="supabaseRegisterBtn" type="button">Зарегистрироваться</button>
+              <button id="supabaseLoginBtn" type="button">Войти</button>
+            </div>
+            <div class="small" style="margin-top:8px; color:var(--muted);">
+              После регистрации Supabase отправит письмо для подтверждения.
+            </div>
+          </div>
+
+          <div id="supabaseLoggedIn" class="hidden">
+            <div class="statRow" style="margin-top:10px;">
+              <span>Вход выполнен</span>
+              <b id="supabaseUserEmail">—</b>
+            </div>
+            <div class="btns" style="justify-content:flex-start;">
+              <button class="primary" id="supabaseSyncBtn" type="button">Синхронизировать</button>
+              <button class="danger" id="supabaseLogoutBtn" type="button">Выйти</button>
+            </div>
+            <div class="small" style="margin-top:8px; color:var(--muted);">
+              Библиотека хранится в облаке и кешируется локально.
+            </div>
+          </div>
+        </div>
+
         <div class="profileSection" style="margin-top:10px;">
   <div class="secHead">
     <h3>Внешний вид</h3>
@@ -2543,7 +2591,7 @@ body::before{
     </section>
 
     <!-- Picker modal (local база) -->
-    <div class="modal" id="pickerModal" aria-hidden="true">
+  <div class="modal" id="pickerModal" aria-hidden="true">
       <div class="modalBackdrop" id="pickerBackdrop" data-close="1"></div>
       <div class="modalCard" role="dialog" aria-modal="true" aria-label="Выбор из базы">
         <div class="modalHead">
@@ -2562,15 +2610,20 @@ body::before{
     </div>
 
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // ========= Config =========
     // External endpoints + local storage keys live here so they are easy to update.
     const OMDB_BASE = "https://omdb-proxy.makeenkoroma69.workers.dev/";
+    const SUPABASE_URL = "https://etokhzddtlsciikyvezu.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0b2toemRkdGxzY2lpa3l2ZXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3NjEyMDAsImV4cCI6MjA4NDMzNzIwMH0.zvmcDFI6koHgdw9LIL1MOpsiuoNcFxNA6WJjaijwrwA";
+    const SUPABASE_TABLE = "libraries";
 
     const STORAGE_KEY_V6 = "netfly_movies_v6";
     const PROFILE_KEY_V2 = "netfly_profile_v2";
     const NOW_KEY_V1 = "netfly_now_v1";
     const OMDB_EP_CACHE_V1 = "netfly_omdb_eps_v1";
+    const SUPABASE_SYNC_KEY = "netfly_supabase_sync_v1";
 
     // Navigation tabs (id must match view section ids).
     const VIEWS = [
@@ -2623,6 +2676,17 @@ body::before{
       favMovieCard: document.getElementById("favMovieCard"),
       favSeriesCard: document.getElementById("favSeriesCard"),
       favDirectorCard: document.getElementById("favDirectorCard"),
+      // Supabase auth
+      supabaseEmail: document.getElementById("supabaseEmail"),
+      supabasePassword: document.getElementById("supabasePassword"),
+      supabaseRegisterBtn: document.getElementById("supabaseRegisterBtn"),
+      supabaseLoginBtn: document.getElementById("supabaseLoginBtn"),
+      supabaseLogoutBtn: document.getElementById("supabaseLogoutBtn"),
+      supabaseSyncBtn: document.getElementById("supabaseSyncBtn"),
+      supabaseStatus: document.getElementById("supabaseStatus"),
+      supabaseLoggedOut: document.getElementById("supabaseLoggedOut"),
+      supabaseLoggedIn: document.getElementById("supabaseLoggedIn"),
+      supabaseUserEmail: document.getElementById("supabaseUserEmail"),
       favActorCard: document.getElementById("favActorCard"),
       bestList: document.getElementById("bestList"),
       recentRatedList: document.getElementById("recentRatedList"),
@@ -2705,6 +2769,12 @@ body::before{
     let profile = loadProfile();
     let nowState = loadNowState();
     let omdbEpCache = loadEpCache();
+
+    // Supabase client + session
+    let supabaseClient = null;
+    let supabaseUser = null;
+    let supabaseSyncTimer = null;
+    let supabaseRealtimeChannel = null;
 
     // pulse helper for ⭐ toggle (prevents multiple pulses at once)
     let lastFavPulseId = null;
@@ -3027,6 +3097,7 @@ function format1(n){ return (Math.round(Number(n) * 10) / 10).toFixed(1); }
     // ========= Storage =========
     function saveMovies(){
       localStorage.setItem(STORAGE_KEY_V6, JSON.stringify(movies));
+      scheduleSupabaseSync();
     }
     function safeRead(key){
       try{
@@ -3093,6 +3164,7 @@ function loadProfile(){
 
     function saveProfile(p){
       localStorage.setItem(PROFILE_KEY_V2, JSON.stringify(p));
+      scheduleSupabaseSync();
     }
     // ========= Now Watching storage =========
     function loadNowState(){
@@ -3127,6 +3199,7 @@ function loadProfile(){
     }
     function saveNowState(){
       localStorage.setItem(NOW_KEY_V1, JSON.stringify(nowState));
+      scheduleSupabaseSync();
     }
 
     function loadEpCache(){
@@ -3135,6 +3208,208 @@ function loadProfile(){
     }
     function saveEpCache(){
       localStorage.setItem(OMDB_EP_CACHE_V1, JSON.stringify(omdbEpCache));
+      scheduleSupabaseSync();
+    }
+
+    function getSupabaseSyncAt(){
+      return Number(localStorage.getItem(SUPABASE_SYNC_KEY) || 0) || 0;
+    }
+    function setSupabaseSyncAt(ts){
+      localStorage.setItem(SUPABASE_SYNC_KEY, String(ts || Date.now()));
+    }
+
+    function setSupabaseStatus(text, isError = false){
+      if(!els.supabaseStatus) return;
+      els.supabaseStatus.textContent = text;
+      els.supabaseStatus.classList.toggle("error", !!isError);
+    }
+
+    function updateSupabaseUi(){
+      if(!els.supabaseLoggedOut || !els.supabaseLoggedIn) return;
+      const loggedIn = !!supabaseUser;
+      els.supabaseLoggedOut.classList.toggle("hidden", loggedIn);
+      els.supabaseLoggedIn.classList.toggle("hidden", !loggedIn);
+      if(els.supabaseUserEmail){
+        els.supabaseUserEmail.textContent = loggedIn ? (supabaseUser.email || "Без email") : "—";
+      }
+      if(!supabaseClient){
+        setSupabaseStatus("Supabase не подключён", true);
+        return;
+      }
+      if(loggedIn){
+        setSupabaseStatus("Подключено и готово");
+      }else{
+        setSupabaseStatus("Войдите или зарегистрируйтесь, чтобы включить облако");
+      }
+    }
+
+    function getLibraryPayload(){
+      return {
+        movies,
+        profile,
+        nowState,
+        omdbEpCache
+      };
+    }
+
+    function applyLibraryPayload(payload){
+      if(payload && typeof payload === "object"){
+        if(Array.isArray(payload.movies)) movies = payload.movies;
+        if(payload.profile && typeof payload.profile === "object") profile = payload.profile;
+        if(payload.nowState && typeof payload.nowState === "object") nowState = payload.nowState;
+        if(payload.omdbEpCache && typeof payload.omdbEpCache === "object") omdbEpCache = payload.omdbEpCache;
+      }
+      saveMovies();
+      saveProfile(profile);
+      saveNowState();
+      saveEpCache();
+      renderEverything();
+    }
+
+    async function pullLibraryFromSupabase(reason = "sync"){
+      if(!supabaseClient || !supabaseUser) return;
+      setSupabaseStatus("Загружаю библиотеку…");
+      const { data, error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .select("payload, updated_at")
+        .eq("user_id", supabaseUser.id)
+        .maybeSingle();
+
+      if(error){
+        const msg = String(error.message || "Не удалось загрузить библиотеку.");
+        const hint = String(error.details || error.hint || "");
+        let help = "Проверь таблицу libraries и RLS.";
+        const merged = (msg + " " + hint).toLowerCase();
+        if(merged.includes("does not exist") || merged.includes("relation")){
+          help = "Проверь, что таблица libraries создана.";
+        }else if(merged.includes("permission") || merged.includes("rls")){
+          help = "Проверь политики RLS для таблицы libraries.";
+        }
+        setSupabaseStatus(`Ошибка загрузки: ${msg}`, true);
+        toast("Supabase", `${msg} ${help}`.trim());
+        return;
+      }
+
+      if(!data?.payload){
+        if(movies.length || Object.keys(profile || {}).length){
+          await pushLibraryToSupabase("seed");
+          setSupabaseStatus("Облако пустое — загрузил локальные данные");
+        }else{
+          setSupabaseStatus("Облако пустое");
+        }
+        return;
+      }
+
+      const remoteUpdatedAt = data.updated_at ? new Date(data.updated_at).getTime() : 0;
+      const localUpdatedAt = getSupabaseSyncAt();
+      if(localUpdatedAt && remoteUpdatedAt && localUpdatedAt > remoteUpdatedAt){
+        await pushLibraryToSupabase("local-newer");
+        return;
+      }
+
+      applyLibraryPayload(data.payload);
+      setSupabaseSyncAt(Date.now());
+      setSupabaseStatus(reason === "manual" ? "Синхронизировано" : "Обновлено из облака");
+    }
+
+    async function pushLibraryToSupabase(reason = "autosync"){
+      if(!supabaseClient || !supabaseUser) return;
+      setSupabaseStatus("Сохраняю в облако…");
+      const payload = getLibraryPayload();
+      const { error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .upsert({
+          user_id: supabaseUser.id,
+          payload,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "user_id" });
+
+      if(error){
+        const msg = String(error.message || "Не удалось сохранить библиотеку.");
+        const hint = String(error.details || error.hint || "");
+        let help = "Проверь таблицу libraries и RLS.";
+        const merged = (msg + " " + hint).toLowerCase();
+        if(merged.includes("does not exist") || merged.includes("relation")){
+          help = "Проверь, что таблица libraries создана.";
+        }else if(merged.includes("permission") || merged.includes("rls")){
+          help = "Проверь политики RLS для таблицы libraries.";
+        }
+        setSupabaseStatus(`Ошибка сохранения: ${msg}`, true);
+        if(reason !== "autosync") toast("Supabase", `${msg} ${help}`.trim());
+        return;
+      }
+      setSupabaseSyncAt(Date.now());
+      setSupabaseStatus(reason === "manual" ? "Сохранено в облако" : "Сохранено");
+    }
+
+    function scheduleSupabaseSync(){
+      if(!supabaseClient || !supabaseUser) return;
+      window.clearTimeout(supabaseSyncTimer);
+      supabaseSyncTimer = window.setTimeout(() => {
+        pushLibraryToSupabase("autosync");
+      }, 900);
+    }
+
+    function subscribeSupabaseRealtime(){
+      if(!supabaseClient || !supabaseUser) return;
+      if(supabaseRealtimeChannel){
+        supabaseClient.removeChannel(supabaseRealtimeChannel);
+        supabaseRealtimeChannel = null;
+      }
+      supabaseRealtimeChannel = supabaseClient
+        .channel(`libraries:${supabaseUser.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: SUPABASE_TABLE,
+            filter: `user_id=eq.${supabaseUser.id}`
+          },
+          async (payload) => {
+            const remoteUpdated = payload?.new?.updated_at
+              ? new Date(payload.new.updated_at).getTime()
+              : 0;
+            const localUpdated = getSupabaseSyncAt();
+            if(remoteUpdated && localUpdated && remoteUpdated <= localUpdated) return;
+            if(payload?.new?.payload){
+              applyLibraryPayload(payload.new.payload);
+              setSupabaseSyncAt(Date.now());
+              setSupabaseStatus("Обновлено в реальном времени");
+              return;
+            }
+            await pullLibraryFromSupabase("realtime");
+          }
+        )
+        .subscribe();
+    }
+
+    async function initSupabase(){
+      if(!window.supabase || !SUPABASE_URL || !SUPABASE_ANON_KEY){
+        updateSupabaseUi();
+        return;
+      }
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      const { data } = await supabaseClient.auth.getSession();
+      supabaseUser = data?.session?.user || null;
+      updateSupabaseUi();
+      if(supabaseUser){
+        await pullLibraryFromSupabase("init");
+        subscribeSupabaseRealtime();
+      }
+
+      supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+        supabaseUser = session?.user || null;
+        updateSupabaseUi();
+        if(supabaseUser){
+          await pullLibraryFromSupabase("auth");
+          subscribeSupabaseRealtime();
+        }else if(supabaseRealtimeChannel){
+          supabaseClient.removeChannel(supabaseRealtimeChannel);
+          supabaseRealtimeChannel = null;
+        }
+      });
     }
 
     function parseRuntimeMinutes(runtimeStr){
@@ -4083,6 +4358,8 @@ function loadProfile(){
       renderFavDirectorCard();
       renderFavActorCard();
 
+      updateSupabaseUi();
+
       // Best + recent
       els.bestList.innerHTML = "";
       els.recentRatedList.innerHTML = "";
@@ -4157,6 +4434,90 @@ function loadProfile(){
         profile.manualGenres = arr;
         saveProfile(profile);
         renderProfile();
+      });
+    }
+
+    function readSupabaseCredentials(){
+      const email = String(els.supabaseEmail?.value || "").trim();
+      const password = String(els.supabasePassword?.value || "").trim();
+      return { email, password };
+    }
+
+    if(els.supabaseRegisterBtn){
+      els.supabaseRegisterBtn.addEventListener("click", async () => {
+        if(!supabaseClient){
+          toast("Supabase недоступен");
+          return;
+        }
+        const { email, password } = readSupabaseCredentials();
+        if(!email || !password){
+          toast("Заполни email и пароль");
+          return;
+        }
+        if(password.length < 6){
+          toast("Слишком короткий пароль", "Минимум 6 символов.");
+          return;
+        }
+        setSupabaseStatus("Регистрирую…");
+        const { error } = await supabaseClient.auth.signUp({ email, password });
+        if(error){
+          const msg = String(error.message || "Не удалось зарегистрироваться");
+          const merged = msg.toLowerCase();
+          if(merged.includes("already") || merged.includes("registered") || merged.includes("exists")){
+            setSupabaseStatus("Этот email уже зарегистрирован", true);
+            toast("Регистрация", "Этот email уже зарегистрирован. Используй вход.");
+            return;
+          }
+          setSupabaseStatus("Ошибка регистрации", true);
+          toast("Регистрация", msg);
+          return;
+        }
+        setSupabaseStatus("Проверь почту для подтверждения");
+        toast("Почта отправлена", "Подтверди email, затем войди.");
+      });
+    }
+
+    if(els.supabaseLoginBtn){
+      els.supabaseLoginBtn.addEventListener("click", async () => {
+        if(!supabaseClient){
+          toast("Supabase недоступен");
+          return;
+        }
+        const { email, password } = readSupabaseCredentials();
+        if(!email || !password){
+          toast("Заполни email и пароль");
+          return;
+        }
+        setSupabaseStatus("Вхожу…");
+        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if(error){
+          setSupabaseStatus("Ошибка входа", true);
+          toast("Вход", error.message || "Не удалось войти");
+          return;
+        }
+        if(els.supabasePassword) els.supabasePassword.value = "";
+        setSupabaseStatus("Вход выполнен");
+        toast("Успешный вход");
+      });
+    }
+
+    if(els.supabaseLogoutBtn){
+      els.supabaseLogoutBtn.addEventListener("click", async () => {
+        if(!supabaseClient) return;
+        await supabaseClient.auth.signOut();
+        supabaseUser = null;
+        updateSupabaseUi();
+        setSupabaseStatus("Вышли из аккаунта");
+      });
+    }
+
+    if(els.supabaseSyncBtn){
+      els.supabaseSyncBtn.addEventListener("click", async () => {
+        if(!supabaseClient || !supabaseUser){
+          toast("Нужно войти", "Сначала войди в аккаунт.");
+          return;
+        }
+        await pullLibraryFromSupabase("manual");
       });
     }
 
@@ -6798,7 +7159,7 @@ if(finishToRated){
       renderNowHomeWidget();
     }
 
-    function init(){
+  function init(){
   renderNav();
   renderSliders();
   updateTotals();
@@ -6817,6 +7178,8 @@ if(finishToRated){
       toast(cn.checked ? "Киноночь включена" : "Киноночь выключена");
     });
   }
+
+  initSupabase();
 }
 init();
 
