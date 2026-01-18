@@ -1171,46 +1171,6 @@ body.muteAnim details.item .itemBody{
   box-shadow: 0 16px 34px rgba(0,0,0,.30);
   animation: fadeUp .18s ease both;
 }
-.authScreen{
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 16px;
-}
-.authCard{
-  width: min(520px, 100%);
-  border: 1px solid rgba(255,255,255,.10);
-  border-radius: 20px;
-  background: rgba(16,16,18,.96);
-  box-shadow: var(--shadow);
-  padding: 18px;
-}
-.authTitle{
-  margin: 0;
-  font-size: 22px;
-  font-weight: 1000;
-}
-.authSubtitle{
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 13px;
-}
-.authLogo{
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 950;
-  letter-spacing: .4px;
-  margin-bottom: 8px;
-}
-.authLogo .logoMark{
-  width: 10px;
-  height: 18px;
-  border-radius: 3px;
-  background: var(--accent);
-  box-shadow: 0 10px 24px rgba(255,255,255,.35);
-}
 .supabaseStatus{
   margin-top: 6px;
   font-weight: 900;
@@ -2849,8 +2809,10 @@ body::before{
     let supabaseClient = null;
     let supabaseUser = null;
     let supabaseSyncTimer = null;
+
     let supabaseRealtimeChannel = null;
-    let appStarted = false;
+
+
 
     // pulse helper for ⭐ toggle (prevents multiple pulses at once)
     let lastFavPulseId = null;
@@ -3295,14 +3257,9 @@ function loadProfile(){
     }
 
     function setSupabaseStatus(text, isError = false){
-      if(els.supabaseStatus){
-        els.supabaseStatus.textContent = text;
-        els.supabaseStatus.classList.toggle("error", !!isError);
-      }
-      if(els.authStatus){
-        els.authStatus.textContent = text;
-        els.authStatus.classList.toggle("error", !!isError);
-      }
+      if(!els.supabaseStatus) return;
+      els.supabaseStatus.textContent = text;
+      els.supabaseStatus.classList.toggle("error", !!isError);
     }
 
     function updateSupabaseUi(){
@@ -3322,34 +3279,6 @@ function loadProfile(){
       }else{
         setSupabaseStatus("Войдите или зарегистрируйтесь, чтобы включить облако");
       }
-    }
-
-    function setAuthState(isAuthed){
-      if(els.authScreen) els.authScreen.classList.toggle("hidden", !!isAuthed);
-      if(els.appShell) els.appShell.classList.toggle("hidden", !isAuthed);
-    }
-
-    function startApp(){
-      if(appStarted) return;
-      renderNav();
-      renderSliders();
-      updateTotals();
-      renderHome();
-
-      // Cinema night init
-      const on = loadCinemaNight();
-      applyCinemaNight(on);
-
-      const cn = document.getElementById("cinemaNightToggle");
-      if(cn){
-        cn.checked = on;
-        cn.addEventListener("change", () => {
-          saveCinemaNight(cn.checked);
-          applyCinemaNight(cn.checked);
-          toast(cn.checked ? "Киноночь включена" : "Киноночь выключена");
-        });
-      }
-      appStarted = true;
     }
 
     function getLibraryPayload(){
@@ -3459,6 +3388,7 @@ function loadProfile(){
       }, 900);
     }
 
+
     function subscribeSupabaseRealtime(){
       if(!supabaseClient || !supabaseUser) return;
       if(supabaseRealtimeChannel){
@@ -3493,6 +3423,8 @@ function loadProfile(){
         .subscribe();
     }
 
+
+
     async function initSupabase(){
       if(!window.supabase || !SUPABASE_URL || !SUPABASE_ANON_KEY){
         updateSupabaseUi();
@@ -3503,29 +3435,27 @@ function loadProfile(){
       const { data } = await supabaseClient.auth.getSession();
       supabaseUser = data?.session?.user || null;
       updateSupabaseUi();
+
       if(supabaseUser){
-        setAuthState(true);
-        startApp();
         await pullLibraryFromSupabase("init");
         subscribeSupabaseRealtime();
-      }else{
-        setAuthState(false);
       }
+
+      if(supabaseUser) await pullLibraryFromSupabase("init");
+
 
       supabaseClient.auth.onAuthStateChange(async (_event, session) => {
         supabaseUser = session?.user || null;
         updateSupabaseUi();
         if(supabaseUser){
-          setAuthState(true);
-          startApp();
           await pullLibraryFromSupabase("auth");
+
           subscribeSupabaseRealtime();
         }else if(supabaseRealtimeChannel){
-          setAuthState(false);
           supabaseClient.removeChannel(supabaseRealtimeChannel);
           supabaseRealtimeChannel = null;
-        }else{
-          setAuthState(false);
+
+
         }
       });
     }
@@ -4556,23 +4486,13 @@ function loadProfile(){
     }
 
     function readSupabaseCredentials(){
-      const authEmail = String(els.authEmail?.value || "").trim();
-      const authPassword = String(els.authPassword?.value || "").trim();
-      if(authEmail || authPassword){
-        return { email: authEmail, password: authPassword };
-      }
       const email = String(els.supabaseEmail?.value || "").trim();
       const password = String(els.supabasePassword?.value || "").trim();
       return { email, password };
     }
 
-    function clearAuthInputs(){
-      if(els.authPassword) els.authPassword.value = "";
-      if(els.supabasePassword) els.supabasePassword.value = "";
-    }
-
-    if(els.supabaseRegisterBtn || els.authRegisterBtn){
-      const registerHandler = async () => {
+    if(els.supabaseRegisterBtn){
+      els.supabaseRegisterBtn.addEventListener("click", async () => {
         if(!supabaseClient){
           toast("Supabase недоступен");
           return;
@@ -4589,26 +4509,17 @@ function loadProfile(){
         setSupabaseStatus("Регистрирую…");
         const { error } = await supabaseClient.auth.signUp({ email, password });
         if(error){
-          const msg = String(error.message || "Не удалось зарегистрироваться");
-          const merged = msg.toLowerCase();
-          if(merged.includes("already") || merged.includes("registered") || merged.includes("exists")){
-            setSupabaseStatus("Этот email уже зарегистрирован", true);
-            toast("Регистрация", "Этот email уже зарегистрирован. Используй вход.");
-            return;
-          }
           setSupabaseStatus("Ошибка регистрации", true);
-          toast("Регистрация", msg);
+          toast("Регистрация", error.message || "Не удалось зарегистрироваться");
           return;
         }
         setSupabaseStatus("Проверь почту для подтверждения");
         toast("Почта отправлена", "Подтверди email, затем войди.");
-      };
-      els.supabaseRegisterBtn?.addEventListener("click", registerHandler);
-      els.authRegisterBtn?.addEventListener("click", registerHandler);
+      });
     }
 
-    if(els.supabaseLoginBtn || els.authLoginBtn){
-      const loginHandler = async () => {
+    if(els.supabaseLoginBtn){
+      els.supabaseLoginBtn.addEventListener("click", async () => {
         if(!supabaseClient){
           toast("Supabase недоступен");
           return;
@@ -4625,12 +4536,10 @@ function loadProfile(){
           toast("Вход", error.message || "Не удалось войти");
           return;
         }
-        clearAuthInputs();
+        if(els.supabasePassword) els.supabasePassword.value = "";
         setSupabaseStatus("Вход выполнен");
         toast("Успешный вход");
-      };
-      els.supabaseLoginBtn?.addEventListener("click", loginHandler);
-      els.authLoginBtn?.addEventListener("click", loginHandler);
+      });
     }
 
     if(els.supabaseLogoutBtn){
@@ -4639,7 +4548,6 @@ function loadProfile(){
         await supabaseClient.auth.signOut();
         supabaseUser = null;
         updateSupabaseUi();
-        setAuthState(false);
         setSupabaseStatus("Вышли из аккаунта");
       });
     }
@@ -7293,7 +7201,25 @@ if(finishToRated){
     }
 
   function init(){
-  setAuthState(false);
+  renderNav();
+  renderSliders();
+  updateTotals();
+  renderHome();
+
+  // Cinema night init
+  const on = loadCinemaNight();
+  applyCinemaNight(on);
+
+  const cn = document.getElementById("cinemaNightToggle");
+  if(cn){
+    cn.checked = on;
+    cn.addEventListener("change", () => {
+      saveCinemaNight(cn.checked);
+      applyCinemaNight(cn.checked);
+      toast(cn.checked ? "Киноночь включена" : "Киноночь выключена");
+    });
+  }
+
   initSupabase();
 }
 init();
