@@ -2182,34 +2182,6 @@ body::before{
 </style>
 </head>
 <body>
-  <div id="authScreen" class="authScreen">
-    <div class="authCard">
-      <div class="authLogo"><span class="logoMark" aria-hidden="true"></span>Netfly</div>
-      <h1 class="authTitle">Вход или регистрация</h1>
-      <div class="authSubtitle">Доступ к библиотеке фильмов и сериалов только после авторизации.</div>
-      <div class="small supabaseStatus" id="authStatus" style="margin-top:10px;">Проверяю статус…</div>
-
-      <div class="formGrid2" style="margin-top:12px;">
-        <div>
-          <label for="authEmail">Email</label>
-          <input id="authEmail" type="email" placeholder="you@email.com" autocomplete="email" />
-        </div>
-        <div>
-          <label for="authPassword">Пароль</label>
-          <input id="authPassword" type="password" placeholder="Минимум 6 символов" autocomplete="current-password" />
-        </div>
-      </div>
-      <div class="btns" style="justify-content:flex-start; margin-top:12px;">
-        <button class="primary" id="authLoginBtn" type="button">Войти</button>
-        <button id="authRegisterBtn" type="button">Зарегистрироваться</button>
-      </div>
-      <div class="small" style="margin-top:8px; color:var(--muted);">
-        При регистрации Supabase отправит письмо для подтверждения.
-      </div>
-    </div>
-  </div>
-
-  <div id="appShell" class="hidden">
   <div class="topbar">
     <div class="topbarInner">
       <div class="brandMini"><span class="logoMark" aria-hidden="true"></span>Netfly</div>
@@ -2682,13 +2654,6 @@ body::before{
     // Cache all DOM references in one place to avoid repeated queries.
     const els = {
       nav: document.getElementById("nav"),
-      authScreen: document.getElementById("authScreen"),
-      appShell: document.getElementById("appShell"),
-      authEmail: document.getElementById("authEmail"),
-      authPassword: document.getElementById("authPassword"),
-      authLoginBtn: document.getElementById("authLoginBtn"),
-      authRegisterBtn: document.getElementById("authRegisterBtn"),
-      authStatus: document.getElementById("authStatus"),
 
       viewHome: document.getElementById("view-home"),
       viewEval: document.getElementById("view-evaluate"),
@@ -7237,6 +7202,5 @@ init();
 
   <div id="confettiLayer" class="confettiLayer" aria-hidden="true"></div>
   <div id="toastHost" class="toastHost"></div>
-</div>
 </body>
 </html>
