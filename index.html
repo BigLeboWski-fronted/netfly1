@@ -2774,7 +2774,15 @@ body::before{
     let supabaseClient = null;
     let supabaseUser = null;
     let supabaseSyncTimer = null;
+
     let supabaseRealtimeChannel = null;
+
+
+
+    let supabaseRealtimeChannel = null;
+
+
+
 
     // pulse helper for ⭐ toggle (prevents multiple pulses at once)
     let lastFavPulseId = null;
@@ -3350,6 +3358,9 @@ function loadProfile(){
       }, 900);
     }
 
+
+
+
     function subscribeSupabaseRealtime(){
       if(!supabaseClient || !supabaseUser) return;
       if(supabaseRealtimeChannel){
@@ -3384,6 +3395,11 @@ function loadProfile(){
         .subscribe();
     }
 
+
+
+
+
+
     async function initSupabase(){
       if(!window.supabase || !SUPABASE_URL || !SUPABASE_ANON_KEY){
         updateSupabaseUi();
@@ -3394,20 +3410,24 @@ function loadProfile(){
       const { data } = await supabaseClient.auth.getSession();
       supabaseUser = data?.session?.user || null;
       updateSupabaseUi();
+ 
       if(supabaseUser){
         await pullLibraryFromSupabase("init");
         subscribeSupabaseRealtime();
       }
+
 
       supabaseClient.auth.onAuthStateChange(async (_event, session) => {
         supabaseUser = session?.user || null;
         updateSupabaseUi();
         if(supabaseUser){
           await pullLibraryFromSupabase("auth");
+
           subscribeSupabaseRealtime();
         }else if(supabaseRealtimeChannel){
           supabaseClient.removeChannel(supabaseRealtimeChannel);
           supabaseRealtimeChannel = null;
+
         }
       });
     }
@@ -4461,6 +4481,7 @@ function loadProfile(){
         setSupabaseStatus("Регистрирую…");
         const { error } = await supabaseClient.auth.signUp({ email, password });
         if(error){
+
           const msg = String(error.message || "Не удалось зарегистрироваться");
           const merged = msg.toLowerCase();
           if(merged.includes("already") || merged.includes("registered") || merged.includes("exists")){
@@ -4470,6 +4491,10 @@ function loadProfile(){
           }
           setSupabaseStatus("Ошибка регистрации", true);
           toast("Регистрация", msg);
+
+          setSupabaseStatus("Ошибка регистрации", true);
+          toast("Регистрация", error.message || "Не удалось зарегистрироваться");
+
           return;
         }
         setSupabaseStatus("Проверь почту для подтверждения");
