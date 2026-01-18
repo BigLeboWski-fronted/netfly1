@@ -2775,6 +2775,10 @@ body::before{
     let supabaseUser = null;
     let supabaseSyncTimer = null;
 
+    let supabaseRealtimeChannel = null;
+
+
+
     // pulse helper for ⭐ toggle (prevents multiple pulses at once)
     let lastFavPulseId = null;
 
@@ -3349,6 +3353,43 @@ function loadProfile(){
       }, 900);
     }
 
+
+    function subscribeSupabaseRealtime(){
+      if(!supabaseClient || !supabaseUser) return;
+      if(supabaseRealtimeChannel){
+        supabaseClient.removeChannel(supabaseRealtimeChannel);
+        supabaseRealtimeChannel = null;
+      }
+      supabaseRealtimeChannel = supabaseClient
+        .channel(`libraries:${supabaseUser.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: SUPABASE_TABLE,
+            filter: `user_id=eq.${supabaseUser.id}`
+          },
+          async (payload) => {
+            const remoteUpdated = payload?.new?.updated_at
+              ? new Date(payload.new.updated_at).getTime()
+              : 0;
+            const localUpdated = getSupabaseSyncAt();
+            if(remoteUpdated && localUpdated && remoteUpdated <= localUpdated) return;
+            if(payload?.new?.payload){
+              applyLibraryPayload(payload.new.payload);
+              setSupabaseSyncAt(Date.now());
+              setSupabaseStatus("Обновлено в реальном времени");
+              return;
+            }
+            await pullLibraryFromSupabase("realtime");
+          }
+        )
+        .subscribe();
+    }
+
+
+
     async function initSupabase(){
       if(!window.supabase || !SUPABASE_URL || !SUPABASE_ANON_KEY){
         updateSupabaseUi();
@@ -3359,13 +3400,27 @@ function loadProfile(){
       const { data } = await supabaseClient.auth.getSession();
       supabaseUser = data?.session?.user || null;
       updateSupabaseUi();
+
+      if(supabaseUser){
+        await pullLibraryFromSupabase("init");
+        subscribeSupabaseRealtime();
+      }
+
       if(supabaseUser) await pullLibraryFromSupabase("init");
+
 
       supabaseClient.auth.onAuthStateChange(async (_event, session) => {
         supabaseUser = session?.user || null;
         updateSupabaseUi();
         if(supabaseUser){
           await pullLibraryFromSupabase("auth");
+
+          subscribeSupabaseRealtime();
+        }else if(supabaseRealtimeChannel){
+          supabaseClient.removeChannel(supabaseRealtimeChannel);
+          supabaseRealtimeChannel = null;
+
+
         }
       });
     }
