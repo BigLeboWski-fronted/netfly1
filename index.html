@@ -2510,20 +2510,11 @@ body::before{
           <div class="tipsPanel">
             <div class="sectionTitle" style="margin:0;">Подключение</div>
             <ol class="tipsSteps">
-              <li>Создай аккаунт в Upstage и выпусти API‑ключ.</li>
-              <li>Вставь ключ ниже — он сохранится только в твоём браузере.</li>
+              <li>Используем OpenRouter и модель Upstage Solar Pro 3 (free).</li>
+              <li>API‑ключ задаётся в коде (константа <code>OPENROUTER_API_KEY</code>).</li>
               <li>Задай запрос: например, “Посоветуй 5 сериалов на вечер”.</li>
             </ol>
-            <div>
-              <label for="tipsApiKey">API‑ключ Upstage</label>
-              <input id="tipsApiKey" type="password" placeholder="up_..." autocomplete="off" />
-            </div>
-            <div class="btns" style="justify-content:flex-start;">
-              <button class="primary" id="tipsSaveKeyBtn" type="button">Сохранить ключ</button>
-              <button id="tipsClearKeyBtn" type="button">Удалить ключ</button>
-            </div>
-            <div class="tipsStatus" id="tipsKeyStatus">Ключ ещё не сохранён.</div>
-            <div class="tipsHint">Ключ хранится локально (LocalStorage) и не отправляется никуда, кроме запроса в Upstage.</div>
+            <div class="tipsHint">Ключ не показывается в интерфейсе и не запрашивается у пользователя.</div>
           </div>
 
           <div class="tipsPanel">
@@ -2708,15 +2699,15 @@ body::before{
     const SUPABASE_URL = "https://etokhzddtlsciikyvezu.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0b2toemRkdGxzY2lpa3l2ZXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3NjEyMDAsImV4cCI6MjA4NDMzNzIwMH0.zvmcDFI6koHgdw9LIL1MOpsiuoNcFxNA6WJjaijwrwA";
     const SUPABASE_TABLE = "libraries";
-    const UPSTAGE_BASE = "https://api.upstage.ai/v1/solar";
-    const UPSTAGE_MODEL = "solar-pro";
+    const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
+    const OPENROUTER_MODEL = "upstage/solar-pro-3:free";
+    const OPENROUTER_API_KEY = "";
 
     const STORAGE_KEY_V6 = "netfly_movies_v6";
     const PROFILE_KEY_V2 = "netfly_profile_v2";
     const NOW_KEY_V1 = "netfly_now_v1";
     const OMDB_EP_CACHE_V1 = "netfly_omdb_eps_v1";
     const SUPABASE_SYNC_KEY = "netfly_supabase_sync_v1";
-    const UPSTAGE_KEY_V1 = "netfly_upstage_key_v1";
 
     // Navigation tabs (id must match view section ids).
     const VIEWS = [
@@ -2789,10 +2780,6 @@ body::before{
       actorDatalist: document.getElementById("actorDatalist"),
 
       // tips (AI)
-      tipsApiKey: document.getElementById("tipsApiKey"),
-      tipsSaveKeyBtn: document.getElementById("tipsSaveKeyBtn"),
-      tipsClearKeyBtn: document.getElementById("tipsClearKeyBtn"),
-      tipsKeyStatus: document.getElementById("tipsKeyStatus"),
       tipsPrompt: document.getElementById("tipsPrompt"),
       tipsSendBtn: document.getElementById("tipsSendBtn"),
       tipsClearBtn: document.getElementById("tipsClearBtn"),
@@ -3756,28 +3743,6 @@ function loadProfile(){
     });
 
 // ========= Tips (AI) =========
-    function loadUpstageKey(){
-      return localStorage.getItem(UPSTAGE_KEY_V1) || "";
-    }
-
-    function saveUpstageKey(key){
-      if(key) localStorage.setItem(UPSTAGE_KEY_V1, key);
-    }
-
-    function clearUpstageKey(){
-      localStorage.removeItem(UPSTAGE_KEY_V1);
-    }
-
-    function updateTipsKeyStatus(){
-      if(!els.tipsKeyStatus) return;
-      const key = loadUpstageKey();
-      if(key){
-        els.tipsKeyStatus.textContent = "Ключ сохранён и готов к использованию.";
-      }else{
-        els.tipsKeyStatus.textContent = "Ключ ещё не сохранён.";
-      }
-    }
-
     function getTopTags(limit = 6){
       const counts = new Map();
       getRated().forEach(movie => {
@@ -3823,25 +3788,25 @@ function loadProfile(){
 
     async function requestTips(){
       if(!els.tipsOutput || !els.tipsStatus) return;
-      const key = loadUpstageKey();
+      const key = OPENROUTER_API_KEY;
       if(!key){
-        els.tipsStatus.textContent = "Сначала сохрани API‑ключ Upstage.";
+        els.tipsStatus.textContent = "Нужно задать OPENROUTER_API_KEY в коде.";
         return;
       }
 
       const { system, user } = buildTipsPrompt(els.tipsPrompt?.value || "");
-      els.tipsStatus.textContent = "Отправляем запрос в Upstage…";
+      els.tipsStatus.textContent = "Отправляем запрос в OpenRouter…";
       els.tipsSendBtn?.setAttribute("disabled", "true");
 
       try{
-        const response = await fetch(`${UPSTAGE_BASE}/chat/completions`, {
+        const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${key}`,
           },
           body: JSON.stringify({
-            model: UPSTAGE_MODEL,
+            model: OPENROUTER_MODEL,
             messages: [
               { role: "system", content: system },
               { role: "user", content: user },
@@ -3852,7 +3817,7 @@ function loadProfile(){
 
         if(!response.ok){
           const errText = await response.text();
-          throw new Error(errText || "Upstage API error");
+          throw new Error(errText || "OpenRouter API error");
         }
 
         const data = await response.json();
@@ -3868,10 +3833,9 @@ function loadProfile(){
     }
 
     function renderTips(){
-      if(els.tipsApiKey){
-        els.tipsApiKey.value = loadUpstageKey();
+      if(els.tipsStatus && !OPENROUTER_API_KEY){
+        els.tipsStatus.textContent = "Нужно задать OPENROUTER_API_KEY в коде.";
       }
-      updateTipsKeyStatus();
     }
 
 // ========= Profile (dashboard) =========
@@ -7380,29 +7344,6 @@ if(finishToRated){
     els.addBtn.addEventListener("click", addMovie);
     els.addWishBtn.addEventListener("click", addWishFromCurrentOmdb);
     els.resetBtn.addEventListener("click", resetSliders);
-
-    // tips controls
-    if(els.tipsSaveKeyBtn){
-      els.tipsSaveKeyBtn.addEventListener("click", () => {
-        const key = String(els.tipsApiKey?.value || "").trim();
-        if(!key){
-          toast("Нужен ключ", "Вставь API‑ключ Upstage.");
-          return;
-        }
-        saveUpstageKey(key);
-        updateTipsKeyStatus();
-        toast("Сохранено", "API‑ключ сохранён локально.");
-      });
-    }
-
-    if(els.tipsClearKeyBtn){
-      els.tipsClearKeyBtn.addEventListener("click", () => {
-        clearUpstageKey();
-        if(els.tipsApiKey) els.tipsApiKey.value = "";
-        updateTipsKeyStatus();
-        toast("Готово", "Ключ удалён.");
-      });
-    }
 
     if(els.tipsSendBtn){
       els.tipsSendBtn.addEventListener("click", requestTips);
