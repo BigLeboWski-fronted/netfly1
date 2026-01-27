@@ -571,6 +571,7 @@ button:active{ transform: translateY(0px) scale(.99); }
   line-height: 1.5;
   white-space: pre-wrap;
 }
+.aiRow{ display:grid; gap: 8px; }
 .promptHint{ color: var(--muted); font-size: 12px; }
 
 /* OMDb dropdown */
@@ -2472,26 +2473,41 @@ body::before{
       <section class="card">
         <div class="listHeader">
           <div class="listTop">
-            <h2>ИИ: чистый промт</h2>
+            <h2>ИИ: Upstage</h2>
           </div>
-          <div class="small">Без контекста библиотеки — только готовый промт для внешнего ИИ.</div>
+          <div class="small">Запрос отправляется в Upstage без контекста твоей библиотеки.</div>
         </div>
 
         <div class="aiPromptGrid">
+          <div class="aiRow">
+            <label for="aiApiKey">Upstage API ключ</label>
+            <input id="aiApiKey" type="password" placeholder="Вставь свой ключ" autocomplete="off" />
+            <div class="promptHint">Ключ хранится локально в браузере.</div>
+          </div>
+
+          <div class="aiRow">
+            <label for="aiModel">Модель</label>
+            <select id="aiModel">
+              <option value="solar-1-mini-chat" selected>solar-1-mini-chat</option>
+              <option value="solar-1-mini-chat-ja">solar-1-mini-chat-ja</option>
+              <option value="solar-1-mini-chat-ko">solar-1-mini-chat-ko</option>
+            </select>
+          </div>
+
           <div>
-            <label for="aiPromptInput">Что хочешь получить от ИИ</label>
+            <label for="aiPromptInput">Запрос</label>
             <textarea id="aiPromptInput" placeholder="Например: подбери 7 фильмов на вечер в стиле sci-fi, чтобы было не слишком мрачно."></textarea>
           </div>
 
           <div>
-            <label for="aiPromptOutput">Готовый промт</label>
+            <label for="aiPromptOutput">Ответ</label>
             <textarea id="aiPromptOutput" class="promptOutput" readonly></textarea>
-            <div class="promptHint">Скопируй и вставь в любой ИИ-чат.</div>
           </div>
         </div>
 
         <div class="btns" style="justify-content:flex-start; margin-top:12px;">
-          <button class="primary" id="aiCopyBtn" type="button">Скопировать промт</button>
+          <button class="primary" id="aiSendBtn" type="button">Отправить</button>
+          <button id="aiCopyBtn" type="button">Скопировать ответ</button>
           <button id="aiResetBtn" type="button">Очистить</button>
         </div>
       </section>
@@ -2668,6 +2684,7 @@ body::before{
     const NOW_KEY_V1 = "netfly_now_v1";
     const OMDB_EP_CACHE_V1 = "netfly_omdb_eps_v1";
     const SUPABASE_SYNC_KEY = "netfly_supabase_sync_v1";
+    const AI_UPSTAGE_KEY = "netfly_ai_upstage_key";
 
     // Navigation tabs (id must match view section ids).
     const VIEWS = [
@@ -2768,8 +2785,11 @@ body::before{
       omdbResults: document.getElementById("omdbResults"),
       omdbStatus: document.getElementById("omdbStatus"),
       // AI prompt
+      aiApiKey: document.getElementById("aiApiKey"),
+      aiModel: document.getElementById("aiModel"),
       aiPromptInput: document.getElementById("aiPromptInput"),
       aiPromptOutput: document.getElementById("aiPromptOutput"),
+      aiSendBtn: document.getElementById("aiSendBtn"),
       aiCopyBtn: document.getElementById("aiCopyBtn"),
       aiResetBtn: document.getElementById("aiResetBtn"),
       // rated list
@@ -3619,51 +3639,100 @@ function loadProfile(){
       return { eps, minutes: min };
     }
 
-    // ========= AI prompt =========
-    function buildAiPrompt(raw){
-      const query = String(raw || "").trim();
-      const userLine = query ? `Запрос пользователя: ${query}` : "Запрос пользователя: (опиши задачу здесь)";
-      return [
-        "Ты — внимательный кино-ассистент.",
-        userLine,
-        "",
-        "Правила:",
-        "- Не используй контекст личной библиотеки пользователя.",
-        "- Пиши по-русски, коротко и по делу.",
-        "- Если ввод расплывчатый, задай 2–3 уточняющих вопроса.",
-        "",
-        "Формат ответа:",
-        "1) Краткое резюме запроса.",
-        "2) Основной ответ (список с пояснениями).",
-        "3) Вопросы для уточнения (если нужны)."
-      ].join("\n");
+    // ========= AI prompt (Upstage) =========
+    function loadAiKey(){
+      try{
+        return localStorage.getItem(AI_UPSTAGE_KEY) || "";
+      }catch{
+        return "";
+      }
     }
 
-    function updateAiPrompt(){
-      if(!els.aiPromptOutput) return;
-      els.aiPromptOutput.value = buildAiPrompt(els.aiPromptInput?.value || "");
+    function saveAiKey(value){
+      try{
+        localStorage.setItem(AI_UPSTAGE_KEY, String(value || ""));
+      }catch{}
     }
 
-    async function copyAiPrompt(){
+    function setAiLoading(isLoading){
+      if(!els.aiSendBtn) return;
+      els.aiSendBtn.disabled = isLoading;
+      els.aiSendBtn.textContent = isLoading ? "Отправляю..." : "Отправить";
+    }
+
+    async function sendAiPrompt(){
+      if(!els.aiPromptInput || !els.aiPromptOutput) return;
+      const prompt = String(els.aiPromptInput.value || "").trim();
+      const apiKey = String(els.aiApiKey?.value || "").trim();
+      if(!apiKey){
+        toast("Нужен ключ", "Добавь API ключ Upstage.");
+        els.aiApiKey?.focus();
+        return;
+      }
+      if(!prompt){
+        toast("Пустой запрос", "Опиши, что нужно получить.");
+        els.aiPromptInput.focus();
+        return;
+      }
+
+      setAiLoading(true);
+      els.aiPromptOutput.value = "Запрос отправлен. Ждём ответ...";
+      try{
+        const res = await fetch("https://api.upstage.ai/v1/solar/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: els.aiModel?.value || "solar-1-mini-chat",
+            messages: [
+              { role: "system", content: "Ты кино-ассистент. Не используй контекст личной библиотеки пользователя." },
+              { role: "user", content: prompt }
+            ],
+            temperature: 0.7
+          })
+        });
+
+        if(!res.ok){
+          const errText = await res.text();
+          throw new Error(errText || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        const content = data?.choices?.[0]?.message?.content;
+        els.aiPromptOutput.value = content || "Ответ пустой.";
+      }catch(err){
+        els.aiPromptOutput.value = "";
+        toast("Ошибка Upstage", "Проверь ключ и соединение.");
+        console.error(err);
+      }finally{
+        setAiLoading(false);
+      }
+    }
+
+    async function copyAiOutput(){
       if(!els.aiPromptOutput) return;
       const text = String(els.aiPromptOutput.value || "");
       if(!text.trim()){
-        toast("Промт пустой", "Сначала опиши запрос.");
+        toast("Ответ пустой", "Сначала отправь запрос.");
         return;
       }
       try{
         await navigator.clipboard.writeText(text);
-        toast("Скопировано", "Промт в буфере обмена.");
+        toast("Скопировано", "Ответ в буфере обмена.");
       }catch{
         els.aiPromptOutput.focus();
         els.aiPromptOutput.select();
         document.execCommand("copy");
-        toast("Скопировано", "Промт в буфере обмена.");
+        toast("Скопировано", "Ответ в буфере обмена.");
       }
     }
 
     function renderAi(){
-      updateAiPrompt();
+      if(els.aiApiKey) els.aiApiKey.value = loadAiKey();
+      if(els.aiPromptOutput && !els.aiPromptOutput.value){
+        els.aiPromptOutput.value = "";
+      }
     }
 
 
@@ -7254,15 +7323,16 @@ if(finishToRated){
     els.addWishBtn.addEventListener("click", addWishFromCurrentOmdb);
     els.resetBtn.addEventListener("click", resetSliders);
 
-    if(els.aiPromptInput){
-      els.aiPromptInput.addEventListener("input", updateAiPrompt);
-      els.aiPromptInput.addEventListener("change", updateAiPrompt);
+    if(els.aiApiKey){
+      els.aiApiKey.addEventListener("input", () => saveAiKey(els.aiApiKey.value));
+      els.aiApiKey.addEventListener("change", () => saveAiKey(els.aiApiKey.value));
     }
-    if(els.aiCopyBtn) els.aiCopyBtn.addEventListener("click", copyAiPrompt);
+    if(els.aiSendBtn) els.aiSendBtn.addEventListener("click", sendAiPrompt);
+    if(els.aiCopyBtn) els.aiCopyBtn.addEventListener("click", copyAiOutput);
     if(els.aiResetBtn){
       els.aiResetBtn.addEventListener("click", () => {
         if(els.aiPromptInput) els.aiPromptInput.value = "";
-        updateAiPrompt();
+        if(els.aiPromptOutput) els.aiPromptOutput.value = "";
       });
     }
 
@@ -7283,7 +7353,7 @@ if(finishToRated){
   renderSliders();
   updateTotals();
   renderHome();
-  updateAiPrompt();
+  renderAi();
 
   // Cinema night init
   const on = loadCinemaNight();
