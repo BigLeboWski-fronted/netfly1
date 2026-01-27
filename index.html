@@ -648,6 +648,47 @@ button:active{ transform: translateY(0px) scale(.99); }
 .items{display:flex; flex-direction:column; gap: 10px; /* full page scroll */ max-height:none; overflow:visible; padding-right: 0;}
 .empty{color: var(--muted); font-size: 13px; padding: 10px 0;}
 
+/* Tips (AI) */
+.tipsGrid{
+  display:grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 12px;
+}
+@media (max-width: 900px){ .tipsGrid{ grid-template-columns: 1fr; } }
+.tipsPanel{
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+  background: rgba(255,255,255,.03);
+  padding: 14px;
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+}
+.tipsSteps{
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.tipsStatus{
+  font-size: 12px;
+  color: var(--muted);
+}
+.tipsOutput{
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.28);
+  border-radius: 14px;
+  padding: 12px;
+  min-height: 140px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+.tipsHint{
+  font-size: 12px;
+  color: var(--muted);
+}
+
 /* Film cards */
 details.item{
   border: 1px solid rgba(255,255,255,.08);
@@ -2454,6 +2495,46 @@ body::before{
     </section>
 
 
+    <!-- TIPS (AI recommendations) -->
+    <section id="view-tips" class="hidden view">
+      <section class="card">
+        <div class="listHeader">
+          <div class="listTop">
+            <h2>Советы от ИИ</h2>
+            <div class="small">Upstage Solar Pro 3 (free)</div>
+          </div>
+          <div class="small">Получай рекомендации фильмов и сериалов на основе твоей библиотеки.</div>
+        </div>
+
+        <div class="tipsGrid">
+          <div class="tipsPanel">
+            <div class="sectionTitle" style="margin:0;">Подключение</div>
+            <ol class="tipsSteps">
+              <li>Используем OpenRouter и модель Upstage Solar Pro 3 (free).</li>
+              <li>API‑ключ задаётся в коде (константа <code>OPENROUTER_API_KEY</code>).</li>
+              <li>Задай запрос: например, “Посоветуй 5 сериалов на вечер”.</li>
+            </ol>
+            <div class="tipsHint">Ключ не показывается в интерфейсе и не запрашивается у пользователя.</div>
+          </div>
+
+          <div class="tipsPanel">
+            <div class="sectionTitle" style="margin:0;">Запрос к ИИ</div>
+            <div>
+              <label for="tipsPrompt">Что нужно?</label>
+              <textarea id="tipsPrompt" placeholder="Например: Подбери 7 фильмов с сильным финалом и коротким хронометражем"></textarea>
+            </div>
+            <div class="btns" style="justify-content:flex-start;">
+              <button class="primary" id="tipsSendBtn" type="button">Получить советы</button>
+              <button id="tipsClearBtn" type="button">Очистить ответ</button>
+            </div>
+            <div class="tipsStatus" id="tipsStatus">ИИ использует твою библиотеку (оценённые, очередь, теги) как контекст.</div>
+            <div class="tipsOutput" id="tipsOutput">Ответ появится здесь.</div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+
 <!-- PROFILE (full width) -->
 
     <section id="view-profile" class="hidden view">
@@ -2618,6 +2699,9 @@ body::before{
     const SUPABASE_URL = "https://etokhzddtlsciikyvezu.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0b2toemRkdGxzY2lpa3l2ZXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3NjEyMDAsImV4cCI6MjA4NDMzNzIwMH0.zvmcDFI6koHgdw9LIL1MOpsiuoNcFxNA6WJjaijwrwA";
     const SUPABASE_TABLE = "libraries";
+    const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
+    const OPENROUTER_MODEL = "upstage/solar-pro-3:free";
+    const OPENROUTER_API_KEY = "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";
 
     const STORAGE_KEY_V6 = "netfly_movies_v6";
     const PROFILE_KEY_V2 = "netfly_profile_v2";
@@ -2632,6 +2716,7 @@ body::before{
       { id:"rated",    label:"Оценённые" },
       { id:"wish",    label:"Буду смотреть" },
       { id:"now",     label:"Смотрю сейчас" },
+      { id:"tips",    label:"Советы" },
     ];
 
     // Human-readable labels for status badges.
@@ -2662,6 +2747,7 @@ body::before{
       viewWishSeries: document.getElementById("view-wish-series"),
       viewProfile: document.getElementById("view-profile"),
       viewNow: document.getElementById("view-now"),
+      viewTips: document.getElementById("view-tips"),
 
 
       // profile (dashboard)
@@ -2692,6 +2778,13 @@ body::before{
       recentRatedList: document.getElementById("recentRatedList"),
       directorDatalist: document.getElementById("directorDatalist"),
       actorDatalist: document.getElementById("actorDatalist"),
+
+      // tips (AI)
+      tipsPrompt: document.getElementById("tipsPrompt"),
+      tipsSendBtn: document.getElementById("tipsSendBtn"),
+      tipsClearBtn: document.getElementById("tipsClearBtn"),
+      tipsStatus: document.getElementById("tipsStatus"),
+      tipsOutput: document.getElementById("tipsOutput"),
 
       // picker modal
       pickerModal: document.getElementById("pickerModal"),
@@ -3591,6 +3684,7 @@ function loadProfile(){
       els.viewEval.classList.toggle("hidden", viewId !== "evaluate");
       els.viewRated.classList.toggle("hidden", viewId !== "rated");
       if(els.viewNow) els.viewNow.classList.toggle("hidden", viewId !== "now");
+      if(els.viewTips) els.viewTips.classList.toggle("hidden", viewId !== "tips");
       if(viewId === "wish"){
         els.viewWishMovies.classList.toggle("hidden", wishKindActive !== "movie");
         els.viewWishSeries.classList.toggle("hidden", wishKindActive !== "series");
@@ -3611,6 +3705,7 @@ function loadProfile(){
       }
       if(viewId === "wish") renderWish();
       if(viewId === "now") renderNow();
+      if(viewId === "tips") renderTips();
       if(viewId === "profile") renderProfile();
     }
     
@@ -3646,6 +3741,110 @@ function loadProfile(){
       e.preventDefault();
       setWishKind(btn.getAttribute("data-kind"));
     });
+
+// ========= Tips (AI) =========
+    function getTopTags(limit = 6){
+      const counts = new Map();
+      getRated().forEach(movie => {
+        const tags = Array.isArray(movie.tags) ? movie.tags : [];
+        tags.forEach(tag => {
+          const t = String(tag || "").trim();
+          if(!t) return;
+          counts.set(t, (counts.get(t) || 0) + 1);
+        });
+      });
+      return Array.from(counts.entries())
+        .sort((a,b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([tag]) => tag);
+    }
+
+    function buildTipsPrompt(userPrompt){
+      const rated = getRated();
+      const wish = movies.filter(m => (m.status || "watched") === "wish");
+      const topTags = getTopTags();
+      const recentRated = rated
+        .slice()
+        .sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0))
+        .slice(0, 6)
+        .map(m => m.name)
+        .filter(Boolean);
+
+      const contextParts = [
+        `Оценённых: ${rated.length}`,
+        `В очереди: ${wish.length}`,
+        topTags.length ? `Теги: ${topTags.join(", ")}` : "Теги: —",
+        recentRated.length ? `Недавно оценённые: ${recentRated.join(", ")}` : "Недавно оценённые: —"
+      ];
+
+      const cleanUserPrompt = String(userPrompt || "").trim();
+      const userLine = cleanUserPrompt || "Подбери 5 фильмов и 3 сериала для вечера.";
+
+      return {
+        system: "Ты киноман-куратор. Дай чёткие рекомендации на русском, с короткими пояснениями.",
+        user: `Моя библиотека: ${contextParts.join(" • ")}. Запрос: ${userLine}. Дай список с кратким описанием и где смотреть (если знаешь).`
+      };
+    }
+
+    async function requestTips(){
+      if(!els.tipsOutput || !els.tipsStatus) return;
+      const key = OPENROUTER_API_KEY;
+      if(!key){
+        els.tipsStatus.textContent = "Нужно задать OPENROUTER_API_KEY в коде.";
+        return;
+      }
+
+      const { system, user } = buildTipsPrompt(els.tipsPrompt?.value || "");
+      els.tipsStatus.textContent = "Отправляем запрос в OpenRouter…";
+      els.tipsSendBtn?.setAttribute("disabled", "true");
+
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+      try{
+        const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${key}`,
+            "HTTP-Referer": window.location.origin || "https://local.netfly",
+            "X-Title": "Netfly",
+          },
+          body: JSON.stringify({
+            model: OPENROUTER_MODEL,
+            messages: [
+              { role: "system", content: system },
+              { role: "user", content: user },
+            ],
+            temperature: 0.7,
+          }),
+          signal: controller.signal,
+        });
+        if(!response.ok){
+          const errText = await response.text();
+          throw new Error(errText || "OpenRouter API error");
+        }
+
+        const data = await response.json();
+        const text = data?.choices?.[0]?.message?.content?.trim();
+        els.tipsOutput.textContent = text || "Ответ пуст. Попробуй изменить запрос.";
+        els.tipsStatus.textContent = "Готово! Можно уточнить запрос или попросить новые подборки.";
+      }catch(err){
+        const isAbort = err?.name === "AbortError";
+        els.tipsOutput.textContent = isAbort
+          ? "Запрос превысил время ожидания. Попробуй ещё раз."
+          : "Не удалось получить ответ. Проверь ключ и интернет.";
+        els.tipsStatus.textContent = `Ошибка: ${err?.message || "Запрос не удался"}`;
+      }finally{
+        window.clearTimeout(timeoutId);
+        els.tipsSendBtn?.removeAttribute("disabled");
+      }
+    }
+
+    function renderTips(){
+      if(els.tipsStatus && !OPENROUTER_API_KEY){
+        els.tipsStatus.textContent = "Нужно задать OPENROUTER_API_KEY в коде.";
+      }
+    }
 
 // ========= Profile (dashboard) =========
     // Parse directors from saved string like "Nolan, Someone"
@@ -7154,6 +7353,17 @@ if(finishToRated){
     els.addWishBtn.addEventListener("click", addWishFromCurrentOmdb);
     els.resetBtn.addEventListener("click", resetSliders);
 
+    if(els.tipsSendBtn){
+      els.tipsSendBtn.addEventListener("click", requestTips);
+    }
+
+    if(els.tipsClearBtn){
+      els.tipsClearBtn.addEventListener("click", () => {
+        if(els.tipsOutput) els.tipsOutput.textContent = "Ответ появится здесь.";
+        if(els.tipsStatus) els.tipsStatus.textContent = "Готов к новому запросу.";
+      });
+    }
+
     // ========= Init =========
     function renderEverything(){
       if(currentView === "home") renderHome();
@@ -7162,6 +7372,7 @@ if(finishToRated){
       if(currentView === "wish") renderWish();
       if(currentView === "profile") renderProfile();
       if(currentView === "now") renderNow();
+      if(currentView === "tips") renderTips();
       renderNowHomeWidget();
     }
 
