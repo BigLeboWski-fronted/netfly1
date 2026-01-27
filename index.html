@@ -3831,7 +3831,7 @@ function loadProfile(){
       els.tipsSendBtn?.setAttribute("disabled", "true");
 
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+      const timeoutId = window.setTimeout(() => controller.abort(), 60000);
       try{
         const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
           method: "POST",
@@ -3863,7 +3863,7 @@ function loadProfile(){
       }catch(err){
         const isAbort = err?.name === "AbortError";
         els.tipsOutput.textContent = isAbort
-          ? "Запрос превысил время ожидания. Попробуй ещё раз."
+          ? "Запрос превысил 60 секунд. Попробуй снова или сократи запрос."
           : "Не удалось получить ответ. Проверь ключ и интернет.";
         els.tipsStatus.textContent = `Ошибка: ${err?.message || "Запрос не удался"}`;
       }finally{
