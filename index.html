@@ -559,6 +559,20 @@ button:active{ transform: translateY(0px) scale(.99); }
 .small{font-size: 12px; color: var(--muted);}
 .note{margin-top: 10px; font-size: 12px; color: var(--muted);}
 
+/* AI prompt */
+.aiPromptGrid{
+  display:grid;
+  gap: 12px;
+}
+.promptOutput{
+  min-height: 180px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.promptHint{ color: var(--muted); font-size: 12px; }
+
 /* OMDb dropdown */
 .dropdown{ position: relative; }
 .results{
@@ -2453,6 +2467,36 @@ body::before{
       </section>
     </section>
 
+    <!-- AI PROMPT (full width) -->
+    <section id="view-ai" class="hidden view">
+      <section class="card">
+        <div class="listHeader">
+          <div class="listTop">
+            <h2>ИИ: чистый промт</h2>
+          </div>
+          <div class="small">Без контекста библиотеки — только готовый промт для внешнего ИИ.</div>
+        </div>
+
+        <div class="aiPromptGrid">
+          <div>
+            <label for="aiPromptInput">Что хочешь получить от ИИ</label>
+            <textarea id="aiPromptInput" placeholder="Например: подбери 7 фильмов на вечер в стиле sci-fi, чтобы было не слишком мрачно."></textarea>
+          </div>
+
+          <div>
+            <label for="aiPromptOutput">Готовый промт</label>
+            <textarea id="aiPromptOutput" class="promptOutput" readonly></textarea>
+            <div class="promptHint">Скопируй и вставь в любой ИИ-чат.</div>
+          </div>
+        </div>
+
+        <div class="btns" style="justify-content:flex-start; margin-top:12px;">
+          <button class="primary" id="aiCopyBtn" type="button">Скопировать промт</button>
+          <button id="aiResetBtn" type="button">Очистить</button>
+        </div>
+      </section>
+    </section>
+
 
 <!-- PROFILE (full width) -->
 
@@ -2632,6 +2676,7 @@ body::before{
       { id:"rated",    label:"Оценённые" },
       { id:"wish",    label:"Буду смотреть" },
       { id:"now",     label:"Смотрю сейчас" },
+      { id:"ai",      label:"ИИ" },
     ];
 
     // Human-readable labels for status badges.
@@ -2662,6 +2707,7 @@ body::before{
       viewWishSeries: document.getElementById("view-wish-series"),
       viewProfile: document.getElementById("view-profile"),
       viewNow: document.getElementById("view-now"),
+      viewAi: document.getElementById("view-ai"),
 
 
       // profile (dashboard)
@@ -2721,6 +2767,11 @@ body::before{
       omdbSearchBtn: document.getElementById("omdbSearchBtn"),
       omdbResults: document.getElementById("omdbResults"),
       omdbStatus: document.getElementById("omdbStatus"),
+      // AI prompt
+      aiPromptInput: document.getElementById("aiPromptInput"),
+      aiPromptOutput: document.getElementById("aiPromptOutput"),
+      aiCopyBtn: document.getElementById("aiCopyBtn"),
+      aiResetBtn: document.getElementById("aiResetBtn"),
       // rated list
       items: document.getElementById("items"),
       stats: document.getElementById("stats"),
@@ -3568,6 +3619,53 @@ function loadProfile(){
       return { eps, minutes: min };
     }
 
+    // ========= AI prompt =========
+    function buildAiPrompt(raw){
+      const query = String(raw || "").trim();
+      const userLine = query ? `Запрос пользователя: ${query}` : "Запрос пользователя: (опиши задачу здесь)";
+      return [
+        "Ты — внимательный кино-ассистент.",
+        userLine,
+        "",
+        "Правила:",
+        "- Не используй контекст личной библиотеки пользователя.",
+        "- Пиши по-русски, коротко и по делу.",
+        "- Если ввод расплывчатый, задай 2–3 уточняющих вопроса.",
+        "",
+        "Формат ответа:",
+        "1) Краткое резюме запроса.",
+        "2) Основной ответ (список с пояснениями).",
+        "3) Вопросы для уточнения (если нужны)."
+      ].join("\n");
+    }
+
+    function updateAiPrompt(){
+      if(!els.aiPromptOutput) return;
+      els.aiPromptOutput.value = buildAiPrompt(els.aiPromptInput?.value || "");
+    }
+
+    async function copyAiPrompt(){
+      if(!els.aiPromptOutput) return;
+      const text = String(els.aiPromptOutput.value || "");
+      if(!text.trim()){
+        toast("Промт пустой", "Сначала опиши запрос.");
+        return;
+      }
+      try{
+        await navigator.clipboard.writeText(text);
+        toast("Скопировано", "Промт в буфере обмена.");
+      }catch{
+        els.aiPromptOutput.focus();
+        els.aiPromptOutput.select();
+        document.execCommand("copy");
+        toast("Скопировано", "Промт в буфере обмена.");
+      }
+    }
+
+    function renderAi(){
+      updateAiPrompt();
+    }
+
 
 
 
@@ -3591,6 +3689,7 @@ function loadProfile(){
       els.viewEval.classList.toggle("hidden", viewId !== "evaluate");
       els.viewRated.classList.toggle("hidden", viewId !== "rated");
       if(els.viewNow) els.viewNow.classList.toggle("hidden", viewId !== "now");
+      if(els.viewAi) els.viewAi.classList.toggle("hidden", viewId !== "ai");
       if(viewId === "wish"){
         els.viewWishMovies.classList.toggle("hidden", wishKindActive !== "movie");
         els.viewWishSeries.classList.toggle("hidden", wishKindActive !== "series");
@@ -3612,6 +3711,7 @@ function loadProfile(){
       if(viewId === "wish") renderWish();
       if(viewId === "now") renderNow();
       if(viewId === "profile") renderProfile();
+      if(viewId === "ai") renderAi();
     }
     
     
@@ -7154,6 +7254,18 @@ if(finishToRated){
     els.addWishBtn.addEventListener("click", addWishFromCurrentOmdb);
     els.resetBtn.addEventListener("click", resetSliders);
 
+    if(els.aiPromptInput){
+      els.aiPromptInput.addEventListener("input", updateAiPrompt);
+      els.aiPromptInput.addEventListener("change", updateAiPrompt);
+    }
+    if(els.aiCopyBtn) els.aiCopyBtn.addEventListener("click", copyAiPrompt);
+    if(els.aiResetBtn){
+      els.aiResetBtn.addEventListener("click", () => {
+        if(els.aiPromptInput) els.aiPromptInput.value = "";
+        updateAiPrompt();
+      });
+    }
+
     // ========= Init =========
     function renderEverything(){
       if(currentView === "home") renderHome();
@@ -7162,6 +7274,7 @@ if(finishToRated){
       if(currentView === "wish") renderWish();
       if(currentView === "profile") renderProfile();
       if(currentView === "now") renderNow();
+      if(currentView === "ai") renderAi();
       renderNowHomeWidget();
     }
 
@@ -7170,6 +7283,7 @@ if(finishToRated){
   renderSliders();
   updateTotals();
   renderHome();
+  updateAiPrompt();
 
   // Cinema night init
   const on = loadCinemaNight();
